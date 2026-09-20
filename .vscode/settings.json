@@ -8,7 +8,6 @@
     "tasks.statusbar.default.hide": true,
     "tasks.statusbar.limit": null,
     "git.openRepositoryInParentFolders": "never",
-    "git.enabled": false,
 
     "cmake.cmakePath": "C:\\Users\\liang\\AppData\\Local\\stm32cube\\bundles\\cmake\\4.2.3+st.1\\bin\\cmake.exe",
     "cmake.useCMakePresets": "always",

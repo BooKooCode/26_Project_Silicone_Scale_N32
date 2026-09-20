@@ -14,12 +14,19 @@
 
 #include <stdbool.h>
 #include "dev_buzzer.h"
+#ifdef TEST_FIRMWARE
+#include "FreeRTOS.h"
+#define ASSERT(EXPR) configASSERT(EXPR)
+#else
 #include "app_error.h"
+#endif
 #include "tim.h"
 #include "timer_tools.h"
 #include "main.h"
 #include "FreeRTOS.h"
+#ifndef TEST_FIRMWARE
 #include "timers.h"
+#endif
 #include "task.h"
 
 #if (DEV_SFUD_LOG_ENABLED)&&(DEV_ENABLED)
@@ -105,6 +112,7 @@ static dev_buzzer_evt_handler_t evt_handler = NULL;
 static void buzzer_finish_song(bool from_isr);
 static void buzzer_play_tone(uint8_t tone, uint8_t beats);
 
+#ifndef TEST_FIRMWARE
 static void buzzer_evt_handler_deferred(void * arg1, uint32_t arg2)
 {
 	(void)arg1;
@@ -112,6 +120,7 @@ static void buzzer_evt_handler_deferred(void * arg1, uint32_t arg2)
 		evt_handler(arg2);
 	}
 }
+#endif
 
 static void buzzer_tone_timer_prepare(void)
 {
@@ -317,12 +326,17 @@ static void buzzer_finish_song(bool from_isr)
 
 	if((evt_handler != NULL) && (event != BUZZER_EVT_NONE)) {
 		if(from_isr) {
+#ifdef TEST_FIRMWARE
+			/* The minimal firmware registers no callback and has no timer service task. */
+			(void)event;
+#else
 			BaseType_t higher_priority_task_woken = pdFALSE;
 
 			if(xTimerPendFunctionCallFromISR(buzzer_evt_handler_deferred, NULL, event,
 										 &higher_priority_task_woken) == pdPASS) {
 				portYIELD_FROM_ISR(higher_priority_task_woken);
 			}
+#endif
 		} else {
 			evt_handler(event);
 		}
@@ -379,7 +393,7 @@ void dev_buzzer_init(dev_buzzer_evt_handler_t _h) {
 
 
 void dev_buzzer_changelevel(uint8_t const _level) {
-	if(_level >= 0 && _level <= 100) {
+	if(_level <= 100U) {
 		tone_level = _level;
 	}
 }

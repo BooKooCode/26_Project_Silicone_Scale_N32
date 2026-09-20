@@ -34,14 +34,7 @@ add_library(FreeRTOS OBJECT
     "${FREERTOS_DIR}/tasks.c"
     "${FREERTOS_DIR}/queue.c"
     "${FREERTOS_DIR}/list.c"
-    "${FREERTOS_DIR}/timers.c"
-    "${FREERTOS_DIR}/event_groups.c"
-    "${FREERTOS_DIR}/stream_buffer.c"
-
     "${FREERTOS_DIR}/portable/GCC/ARM_CM4F/port.c"
-    "${FREERTOS_DIR}/portable/MemMang/heap_4.c"
-
-    "${FREERTOS_DIR}/CMSIS_RTOS_V2/cmsis_os2.c"
 )
 
 add_library(n32_platform INTERFACE)
@@ -71,6 +64,7 @@ target_compile_definitions(n32_platform INTERFACE
     SYSCLK_FREQ=16000000
     USE_RTOS_MEMORY=1
     STATIC_DEBUG=1
+    TEST_FIRMWARE=1
     "$<$<CONFIG:Debug>:DEBUG>"
 )
 
@@ -85,35 +79,7 @@ target_link_libraries(FreeRTOS PUBLIC n32_platform)
 target_link_libraries(${PROJECT_NAME} PRIVATE n32_platform FreeRTOS)
 
 add_subdirectory(VersionScript)
-
-set(BUSINESS_MODULE_TARGETS)
-foreach(MODULE_ROOT IN ITEMS Common CustomDrivers Middlewares/Module Service App)
-    file(GLOB MODULE_DIRS CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE_ROOT}/*"
-    )
-    list(SORT MODULE_DIRS)
-    foreach(MODULE_DIR IN LISTS MODULE_DIRS)
-        if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${MODULE_DIR}/CMakeLists.txt")
-            get_filename_component(MODULE_TARGET "${MODULE_DIR}" NAME)
-            add_subdirectory("${MODULE_DIR}")
-            list(APPEND BUSINESS_MODULE_TARGETS "${MODULE_TARGET}")
-        endif()
-    endforeach()
-endforeach()
-add_subdirectory(Middlewares/rtt)
-list(APPEND BUSINESS_MODULE_TARGETS rtt)
-list(REMOVE_DUPLICATES BUSINESS_MODULE_TARGETS)
-
-foreach(MODULE_TARGET IN LISTS BUSINESS_MODULE_TARGETS)
-    get_target_property(MODULE_TYPE ${MODULE_TARGET} TYPE)
-    if(MODULE_TYPE STREQUAL "INTERFACE_LIBRARY")
-        target_link_libraries(${MODULE_TARGET} INTERFACE n32_platform)
-    else()
-        target_link_libraries(${MODULE_TARGET} PRIVATE n32_platform)
-    endif()
-endforeach()
-
-target_link_libraries(${PROJECT_NAME} PRIVATE ${BUSINESS_MODULE_TARGETS} m)
+target_link_libraries(${PROJECT_NAME} PRIVATE VersionScript m)
 
 target_link_options(${PROJECT_NAME} PRIVATE
     "-T${LINKER_SCRIPT}"
