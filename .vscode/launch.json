@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "N32L406RB: J-Link Debug",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "jlink",
+
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}\\build\\Debug\\N32L406_Template.elf",
+
+            "serverpath": "${config:n32.jlinkPath}\\JLinkGDBServerCL.exe",
+            "gdbPath": "${config:n32.gccBin}\\arm-none-eabi-gdb.exe",
+            "armToolchainPath": "${config:n32.gccBin}",
+
+            "device": "${config:n32.device}",
+            "interface": "swd",
+            "serverArgs": [
+                "-speed",
+                "${config:n32.swdSpeed}"
+            ],
+
+            "preLaunchTask": "N32: Build Debug",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "raw"
+        }
+    ]
+}

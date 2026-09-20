@@ -1,0 +1,72 @@
+#ifndef RESOURCE_OCCUPATION_H__
+#define RESOURCE_OCCUPATION_H__
+
+#ifndef NRFX_CHECK
+#define NRFX_CHECK(x) (x)
+#endif
+
+#ifndef SAADC_ENABLED
+#define SAADC_ENABLED 1
+#endif
+
+#ifndef GPIOTE_ENABLED
+#define GPIOTE_ENABLED 1
+#endif
+
+#ifndef SPIM_ENABLED
+#define SPIM_ENABLED 1
+#endif
+
+#ifndef DEV_SAADC_MGNT_ENABLED
+#define DEV_SAADC_MGNT_ENABLED 1
+#endif
+
+#ifndef DEV_CS1237_ENABLED
+#define DEV_CS1237_ENABLED 1
+#endif
+
+#ifndef DEV_TM1640B_ENABLED
+#define DEV_TM1640B_ENABLED 1
+#endif
+
+#ifndef DEV_BUZZER_ENABLED
+#define DEV_BUZZER_ENABLED 1
+#endif
+
+#ifndef DEV_SFUD_ENABLED
+#define DEV_SFUD_ENABLED 1
+#endif
+
+#ifndef DEV_SAADC_MGNT_LOG_ENABLED
+#define DEV_SAADC_MGNT_LOG_ENABLED 0
+#endif
+
+#ifndef DEV_ENABLED
+#define DEV_ENABLED 0
+#endif
+
+#ifndef DEV_CS1237LOG_ENABLED
+#define DEV_CS1237LOG_ENABLED 0
+#endif
+
+#ifndef DEV_CS1237_LOG_ENABLED
+#define DEV_CS1237_LOG_ENABLED 0
+#endif
+
+#ifndef DEV_TM1640B_LOG_ENABLED
+#define DEV_TM1640B_LOG_ENABLED 0
+#endif
+
+#ifndef DEV_BUZZER_LOG_ENABLED
+#define DEV_BUZZER_LOG_ENABLED 0
+#endif
+
+#ifndef DEV_SFUD_LOG_ENABLED
+#define DEV_SFUD_LOG_ENABLED 0
+#endif
+
+#ifndef DEV_BUZZER_ACTIVE_LEVEL
+#define DEV_BUZZER_ACTIVE_LEVEL 1
+#endif
+
+#endif

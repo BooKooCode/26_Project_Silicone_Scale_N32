@@ -1,0 +1,9 @@
+# Local agent configuration and documentation artifacts
+.agent/
+.agents/
+docs/
+skill-lock.json
+skills-lock.json
+
+# CMake build output
+build/

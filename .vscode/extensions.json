@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "marus25.cortex-debug",
+        "actboy168.tasks",
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools"
+    ]
+}

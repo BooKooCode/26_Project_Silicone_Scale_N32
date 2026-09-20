@@ -1,0 +1,132 @@
+#ifndef __DEV_STATUS_H__
+#define __DEV_STATUS_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "bookoo_error_def.h"
+#include "dev_vars_table.h"
+
+
+
+typedef enum {
+	FLOW_STOP = 0U,
+	MOVE_STOP,
+} AUTO_MODE_STOP_METHOD_E;
+
+
+typedef enum {
+	SYS_SLEEPING_REQ = 0,
+	SYS_WAKEUP_REQ,
+	SYS_CALI_REQ,
+	SYS_CALI_EXITING_REQ,
+	SYS_PEELING_REQ,
+	SYS_NEXT_MODE_REQ,
+	SYS_LOWPOWER_PROTECT_REQ,
+	SYS_INCHARGING_REQ,
+	SYS_EXITCHARGING_REQ,
+    SYS_FULL_CHARGED_REQ,
+	SYS_TESTLED_REQ,
+    SYS_SILENCE_REQ,
+    SYS_UNIT_REQ,
+	SYS_TOGGLE_ESPRESSO_REQ,
+    
+	SYS_TOAUTOREADY_REQ,
+	SYS_TOAUTOGOING_REQ,
+	SYS_TOAUTOEND_REQ,
+	SYS_TOAUTOEND_APP_REQ,
+    
+	SYS_RESERVED_RATIO_REQ,
+    SYS_CUP_RECORD_REQ,
+	SYS_TOGGLE_ESPRESSO_SUBMODE_REQ,
+	SYS_CUP_WAKEUP_REQ,
+	SYS_SLEEP_PROBE_ERROR_REQ,
+	SYS_SLEEP_PROBE_RECOVERED_REQ,
+	SYS_SLEEP_PROBE_RETRY_REQ,
+} SYSTEM_STATE_REQ_E;
+
+
+typedef enum {
+	SLEEPING = 0U,
+	WAKEUP,
+	WAKEUP_CALIBRATE,
+	WEIGHTING_MODE,
+	TIMING_MODE,
+	RESERVED_MODE_5,
+	AUTO_MODE_READY,
+	AUTO_MODE_GOING,
+	AUTO_MODE_END,
+	WORKING_CALIBRATE,
+	SYS_LOWPOWER_PROTECT,
+    DISP_TEST_MODE,
+    
+	SYSTEM_STAT_TOTAL_COUNT
+} SYSTEM_STATE_E;
+
+
+typedef enum {
+    SYSTEM_STATE = 0,
+    BUTTON_LOCK_STATE,
+    INCHARGING_STATE,
+    STARTUP_TIMESTAMP,
+    
+    WAIT_PEELING_TIME,
+    STATUS_TYPE_MAX_TOTAL_COUNT
+} DEV_STATUS_TYPE_E;
+
+
+enum {
+	MASS_UNIT_G = 1U,
+	MASS_UNIT_OZ,
+};
+
+
+enum {
+	BUZZER_GEAR_NONE = 0U,
+	BUZZER_GEAR_LOW,
+	BUZZER_GEAR_MIDLOW,
+	BUZZER_GEAR_MID,
+	BUZZER_GEAR_MIDHIGH,
+	BUZZER_GEAR_HIGH,
+};
+
+
+enum {
+	HUALANHAI1KG_1MVPV = 0U,
+	HONGBO2KG_2MVPV,
+	NUOSHENG3KG_2MVPV,
+	
+	MASS_MGNT_PARAMS_TABSIZE,
+};
+
+
+typedef struct {
+    uint32_t value;
+    uint32_t timestamp;
+} status_item_t;
+
+
+
+
+SYSTEM_ERROR_CODE_E dev_status_init(void);
+
+SYSTEM_ERROR_CODE_E dev_status_set(DEV_STATUS_TYPE_E status_type, uint32_t new_status);
+
+SYSTEM_ERROR_CODE_E dev_status_get(DEV_STATUS_TYPE_E status_type, uint32_t *out_status);
+
+SYSTEM_ERROR_CODE_E dev_var_set(VARS_CACHE_INDEX_E index, FORMAT_4BYTES_U *value);
+
+SYSTEM_ERROR_CODE_E dev_var_get(VARS_CACHE_INDEX_E index, FORMAT_4BYTES_U *out_value);
+
+void dev_sw_reset(void);
+
+void dev_hw_poweron(void);
+
+void dev_hw_shutdown(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // DEVICE_STATUS_H

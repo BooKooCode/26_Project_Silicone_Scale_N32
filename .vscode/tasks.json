@@ -1,0 +1,140 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "JLink-Flash",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}\\.vscode\\jlink-flash.ps1",
+                "-WorkspaceRoot",
+                "${workspaceFolder}",
+                "-ProjectName",
+                "N32L406_Template",
+                "-JLinkExe",
+                "${config:n32.jlinkPath}\\JLink.exe",
+                "-ObjcopyExe",
+                "${config:n32.gccBin}\\arm-none-eabi-objcopy.exe",
+                "-Device",
+                "${config:n32.device}",
+                "-Speed",
+                "${config:n32.swdSpeed}"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "statusbar": {
+                    "hide": false,
+                    "label": "$(desktop-download) JLink-Flash",
+                    "detail": "通过J-Link执行烧录"
+                }
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
+            "label": "N32: Configure Debug",
+            "type": "process",
+            "command": "${config:n32.cmakePath}",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}\\build\\Debug",
+                "-G",
+                "Ninja",
+                "-DCMAKE_MAKE_PROGRAM=${config:n32.ninjaPath}",
+                "-DCMAKE_TOOLCHAIN_FILE=${workspaceFolder}\\cmake\\arm-none-eabi.cmake",
+                "-DARM_GCC_BIN=${config:n32.gccBin}",
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "N32: Build Debug",
+            "type": "process",
+            "command": "${config:n32.cmakePath}",
+            "args": [
+                "--build",
+                "${workspaceFolder}\\build\\Debug",
+                "--parallel"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "N32: Configure Debug",
+            "dependsOrder": "sequence",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        },
+        {
+            "label": "N32: Configure Release",
+            "type": "process",
+            "command": "${config:n32.cmakePath}",
+            "args": [
+                "-S",
+                "${workspaceFolder}",
+                "-B",
+                "${workspaceFolder}\\build\\Release",
+                "-G",
+                "Ninja",
+                "-DCMAKE_MAKE_PROGRAM=${config:n32.ninjaPath}",
+                "-DCMAKE_TOOLCHAIN_FILE=${workspaceFolder}\\cmake\\arm-none-eabi.cmake",
+                "-DARM_GCC_BIN=${config:n32.gccBin}",
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "N32: Build Release",
+            "type": "process",
+            "command": "${config:n32.cmakePath}",
+            "args": [
+                "--build",
+                "${workspaceFolder}\\build\\Release",
+                "--parallel"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "N32: Configure Release",
+            "dependsOrder": "sequence",
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
+        }
+    ]
+}
