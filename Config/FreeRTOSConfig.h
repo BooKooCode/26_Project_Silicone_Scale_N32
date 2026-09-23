@@ -112,7 +112,7 @@
 #endif
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION  0
 #ifdef TEST_FIRMWARE
-#define configUSE_TICKLESS_IDLE                  0
+#define configUSE_TICKLESS_IDLE                  1
 #else
 #define configUSE_TICKLESS_IDLE                  2
 #endif

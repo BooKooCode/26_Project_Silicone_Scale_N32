@@ -103,6 +103,9 @@ void test_display_update(void)
         case TEST_STATE_CAL_DONE:
             show_text(0x5EU, 0x5CU, 0x37U);
             break;
+        case TEST_STATE_SLEEPING:
+            (void)dev_tm1640b_onoff_ctrl(false);
+            break;
         case TEST_STATE_ERROR:
         default:
             show_error(test_app_error());

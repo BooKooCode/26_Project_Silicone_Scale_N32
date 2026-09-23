@@ -1,0 +1,33 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "Debug",
+            "displayName": "N32L406 Debug",
+            "inherits": "n32-debug",
+            "cacheVariables": {
+                "CMAKE_MAKE_PROGRAM": "C:/path/to/ninja.exe",
+                "ARM_GCC_BIN": "C:/path/to/arm-gnu-toolchain/bin"
+            }
+        },
+        {
+            "name": "Release",
+            "displayName": "N32L406 Release",
+            "inherits": "n32-release",
+            "cacheVariables": {
+                "CMAKE_MAKE_PROGRAM": "C:/path/to/ninja.exe",
+                "ARM_GCC_BIN": "C:/path/to/arm-gnu-toolchain/bin"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "configurePreset": "Debug"
+        },
+        {
+            "name": "Release",
+            "configurePreset": "Release"
+        }
+    ]
+}

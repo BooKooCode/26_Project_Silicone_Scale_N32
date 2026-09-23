@@ -1,4 +1,5 @@
 #include "sleep_probe.h"
+#include <math.h>
 
 void sleep_probe_init(sleep_probe_t *probe, bool baseline_valid, float baseline_g)
 {
@@ -42,7 +43,7 @@ sleep_probe_event_e sleep_probe_finish_window(sleep_probe_t *probe,
         probe->baseline_valid = true;
         return SLEEP_PROBE_EVENT_NONE;
     }
-    if ((absolute_mass_g - probe->baseline_g) > SLEEP_PROBE_WAKE_DELTA_G) {
+    if (fabsf(absolute_mass_g - probe->baseline_g) > SLEEP_PROBE_WAKE_DELTA_G) {
         return SLEEP_PROBE_EVENT_CUP_WAKE;
     }
     return SLEEP_PROBE_EVENT_NONE;

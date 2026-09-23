@@ -1,0 +1,39 @@
+{
+    "n32.cmakePath": "C:\\path\\to\\cmake.exe",
+    "n32.ninjaPath": "C:\\path\\to\\ninja.exe",
+    "n32.gccBin": "C:\\path\\to\\arm-gnu-toolchain\\bin",
+    "n32.jlinkPath": "C:\\path\\to\\JLink",
+    "n32.device": "N32L406RB",
+    "n32.swdSpeed": "1000",
+    "tasks.statusbar.default.hide": true,
+    "tasks.statusbar.limit": null,
+    "git.openRepositoryInParentFolders": "never",
+
+    "cmake.cmakePath": "C:\\path\\to\\cmake.exe",
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": true,
+    "cmake.options.statusBarVisibility": "visible",
+    "cmake.options.advanced": {
+        "configurePreset": { "statusBarVisibility": "hidden" },
+        "buildPreset": { "statusBarVisibility": "hidden" },
+        "testPreset": { "statusBarVisibility": "hidden" },
+        "packagePreset": { "statusBarVisibility": "hidden" },
+        "workflowPreset": { "statusBarVisibility": "hidden" },
+        "kit": { "statusBarVisibility": "hidden" },
+        "variant": { "statusBarVisibility": "hidden" },
+        "folder": { "statusBarVisibility": "hidden" },
+        "buildTarget": { "statusBarVisibility": "hidden" },
+        "build": { "statusBarVisibility": "visible" },
+        "launchTarget": { "statusBarVisibility": "hidden" },
+        "debug": { "statusBarVisibility": "hidden" },
+        "launch": { "statusBarVisibility": "hidden" },
+        "ctest": { "statusBarVisibility": "hidden" },
+        "cpack": { "statusBarVisibility": "hidden" },
+        "workflow": { "statusBarVisibility": "hidden" }
+    },
+
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.intelliSenseMode": "windows-gcc-arm",
+    "C_Cpp.default.cStandard": "c11",
+    "C_Cpp.errorSquiggles": "enabled"
+}

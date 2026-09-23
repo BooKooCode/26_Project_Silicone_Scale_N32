@@ -12,10 +12,13 @@ extern "C" {
 #define SLEEP_PROBE_CUP_WAKE_ENABLED            1U
 #endif
 #ifndef SLEEP_PROBE_PERIOD_MS
-#define SLEEP_PROBE_PERIOD_MS                   1000UL
+#define SLEEP_PROBE_PERIOD_MS                   1500UL
 #endif
-#ifndef SLEEP_PROBE_WINDOW_MS
-#define SLEEP_PROBE_WINDOW_MS                   500UL
+#ifndef SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS
+#define SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS      20UL
+#endif
+#ifndef SLEEP_PROBE_STABILIZE_WINDOW_MS
+#define SLEEP_PROBE_STABILIZE_WINDOW_MS         500UL
 #endif
 #ifndef SLEEP_PROBE_SAMPLE_POLL_MS
 #define SLEEP_PROBE_SAMPLE_POLL_MS              5UL
@@ -37,12 +40,13 @@ extern "C" {
     (SLEEP_PROBE_CUP_WAKE_ENABLED != 1U)
 #error "SLEEP_PROBE_CUP_WAKE_ENABLED must be 0 or 1"
 #endif
-#if SLEEP_PROBE_WINDOW_MS > SLEEP_PROBE_PERIOD_MS
-#error "SLEEP_PROBE_WINDOW_MS must not exceed SLEEP_PROBE_PERIOD_MS"
+#if SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS == 0UL
+#error "Sleep probe first-sample timeout must be greater than zero"
 #endif
 #if (SLEEP_PROBE_SAMPLE_POLL_MS == 0UL) || \
-    ((SLEEP_PROBE_SAMPLE_POLL_MS * SLEEP_PROBE_STABLE_SAMPLE_COUNT) > SLEEP_PROBE_WINDOW_MS)
-#error "Sleep probe window cannot consume enough stable samples"
+    ((SLEEP_PROBE_SAMPLE_POLL_MS * SLEEP_PROBE_STABLE_SAMPLE_COUNT) > \
+     SLEEP_PROBE_STABILIZE_WINDOW_MS)
+#error "Sleep probe stabilization window cannot consume enough stable samples"
 #endif
 
 typedef enum {

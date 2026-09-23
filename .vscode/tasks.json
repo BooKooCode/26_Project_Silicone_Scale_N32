@@ -48,16 +48,9 @@
             "type": "process",
             "command": "${config:n32.cmakePath}",
             "args": [
-                "-S",
-                "${workspaceFolder}",
-                "-B",
-                "${workspaceFolder}\\build\\Debug",
-                "-G",
-                "Ninja",
-                "-DCMAKE_MAKE_PROGRAM=${config:n32.ninjaPath}",
-                "-DCMAKE_TOOLCHAIN_FILE=${workspaceFolder}\\cmake\\arm-none-eabi.cmake",
-                "-DARM_GCC_BIN=${config:n32.gccBin}",
-                "-DCMAKE_BUILD_TYPE=Debug"
+                "--preset",
+                "Debug",
+                "--fresh"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -70,7 +63,8 @@
             "command": "${config:n32.cmakePath}",
             "args": [
                 "--build",
-                "${workspaceFolder}\\build\\Debug",
+                "--preset",
+                "Debug",
                 "--parallel"
             ],
             "options": {
@@ -96,16 +90,9 @@
             "type": "process",
             "command": "${config:n32.cmakePath}",
             "args": [
-                "-S",
-                "${workspaceFolder}",
-                "-B",
-                "${workspaceFolder}\\build\\Release",
-                "-G",
-                "Ninja",
-                "-DCMAKE_MAKE_PROGRAM=${config:n32.ninjaPath}",
-                "-DCMAKE_TOOLCHAIN_FILE=${workspaceFolder}\\cmake\\arm-none-eabi.cmake",
-                "-DARM_GCC_BIN=${config:n32.gccBin}",
-                "-DCMAKE_BUILD_TYPE=Release"
+                "--preset",
+                "Release",
+                "--fresh"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -118,7 +105,8 @@
             "command": "${config:n32.cmakePath}",
             "args": [
                 "--build",
-                "${workspaceFolder}\\build\\Release",
+                "--preset",
+                "Release",
                 "--parallel"
             ],
             "options": {

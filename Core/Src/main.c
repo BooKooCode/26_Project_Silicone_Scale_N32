@@ -7,6 +7,7 @@
 #include "n32l40x_flash.h"
 #include "n32l40x_pwr.h"
 #include "n32l40x_rcc.h"
+#include "rtc.h"
 
 extern void xPortSysTickHandler(void);
 
@@ -85,6 +86,9 @@ int main(void)
     retain_version_metadata();
     power_latch_early();
     SystemClock_Config();
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_WAKE
+    NS_RTC_Init();
+#endif
     NS_CRC_Init();
     NS_FREERTOS_Init();
     vTaskStartScheduler();
