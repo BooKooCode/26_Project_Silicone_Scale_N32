@@ -1,6 +1,8 @@
 #include "test_display.h"
 #include "app_freertos.h"
 #include "dev_tm1640b.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
@@ -16,6 +18,8 @@ static const uint8_t digits[16] = {
     0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71
 };
 
+static TickType_t startup_animation_until;
+
 static void send_buffer(const uint8_t *buffer)
 {
     (void)dev_tm1640b_senddata(0U, buffer, DISPLAY_BYTES);
@@ -28,6 +32,20 @@ static void show_text(uint8_t a, uint8_t b, uint8_t c)
     buffer[MASS_INDEX] = a;
     buffer[MASS_INDEX + 1U] = b;
     buffer[MASS_INDEX + 2U] = c;
+    send_buffer(buffer);
+}
+
+static void show_startup_animation(void)
+{
+    uint8_t buffer[DISPLAY_BYTES] = {0};
+
+    /* Same 200 ms power-on pattern used by the product display: "BooKoo". */
+    buffer[3] = 0x7CU;
+    buffer[4] = 0x5CU;
+    buffer[5] = 0x5CU;
+    buffer[6] = 0x78U;
+    buffer[7] = 0x5CU;
+    buffer[8] = 0x5CU;
     send_buffer(buffer);
 }
 
@@ -84,6 +102,11 @@ void test_display_init(void)
 
 void test_display_update(void)
 {
+    if ((int32_t)(xTaskGetTickCount() - startup_animation_until) < 0) {
+        show_startup_animation();
+        return;
+    }
+
     switch (test_app_state()) {
         case TEST_STATE_WAIT_START:
             (void)dev_tm1640b_onoff_ctrl(false);
@@ -111,6 +134,12 @@ void test_display_update(void)
             show_error(test_app_error());
             break;
     }
+}
+
+void test_display_startup(void)
+{
+    startup_animation_until = xTaskGetTickCount() + pdMS_TO_TICKS(200U);
+    show_startup_animation();
 }
 
 void test_display_show_battery(uint8_t percent)

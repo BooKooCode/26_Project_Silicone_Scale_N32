@@ -443,6 +443,19 @@ void dev_buzzer_enable(void) {
 }
 
 
+void dev_buzzer_resume(void) {
+    /* Rebuild timer/GPIO state after STOP2 before playing the wake melody. */
+    buzzer_enabled = false;
+    in_playsong = false;
+    tail_guard_pending = false;
+    inter_note_gap_pending = false;
+    buzzer_event = BUZZER_EVT_NONE;
+    pwm_started = false;
+    pwm_initialized = false;
+    tone_timer_initialized = false;
+    dev_buzzer_init(evt_handler);
+}
+
 void dev_buzzer_disable(void) {
     buzzer_enabled = false;
     in_playsong = false;

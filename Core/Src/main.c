@@ -86,7 +86,8 @@ int main(void)
     retain_version_metadata();
     power_latch_early();
     SystemClock_Config();
-#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_WAKE
+#if (TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_WAKE) || \
+    (TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE)
     NS_RTC_Init();
 #endif
     NS_CRC_Init();

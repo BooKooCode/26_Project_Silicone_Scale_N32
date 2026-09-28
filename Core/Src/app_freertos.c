@@ -48,6 +48,9 @@ static volatile test_state_t state = TEST_STATE_WAIT_START;
 static volatile float displayed_mass;
 static volatile uint8_t error_code;
 static volatile bool shutdown_pending;
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+static volatile bool startup_sound_pending;
+#endif
 static float calibration = DEFAULT_CALIBRATION;
 static float zero_value;
 static bool zero_ready;
@@ -92,9 +95,38 @@ static float probe_window_average;
 static float probe_samples[SLEEP_PROBE_STABLE_SAMPLE_COUNT];
 static uint32_t probe_sample_index;
 static uint32_t probe_sample_count;
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+static volatile bool sleep_left_irq_pressed;
+#endif
 
 static void set_error(uint8_t code);
 static void stable_reset(void);
+
+static void complete_startup(bool from_sleep)
+{
+    TickType_t now = xTaskGetTickCount();
+
+    state = TEST_STATE_WEIGHING;
+    state_started = now;
+    if (from_sleep) {
+        g_test_cup_wake_count++;
+    }
+    (void)dev_cs1237_wakeup();
+    if (from_sleep) {
+        dev_buzzer_resume();
+    } else {
+        dev_buzzer_enable();
+    }
+    (void)dev_tm1640b_wakeup();
+    test_display_startup();
+    if (from_sleep) {
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+        startup_sound_pending = true;
+#endif
+    } else {
+        dev_buzzer_action(SONG_STARTUP);
+    }
+}
 
 static bool left_pressed(void)
 {
@@ -105,6 +137,41 @@ static bool right_pressed(void)
 {
     return GPIO_ReadInputDataBit(btn_right_GPIO_Port, btn_right_Pin) != Bit_RESET;
 }
+
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+static void sleep_left_wakeup_irq_enable(void)
+{
+    EXTI_InitType exti = {0};
+
+    GPIO_ConfigEXTILine(GPIOA_PORT_SOURCE, GPIO_PIN_SOURCE2);
+    EXTI_ClrITPendBit(EXTI_LINE2);
+    exti.EXTI_Line = EXTI_LINE2;
+    exti.EXTI_Mode = EXTI_Mode_Interrupt;
+    /* Left button is active low; only the press edge is a STOP2 wake source.
+     * The line is masked in the ISR until the 200 ms hold is confirmed. */
+    exti.EXTI_Trigger = EXTI_Trigger_Falling;
+    exti.EXTI_LineCmd = ENABLE;
+    EXTI_InitPeripheral(&exti);
+    sleep_left_irq_pressed = false;
+    NVIC_ClearPendingIRQ(EXTI2_IRQn);
+    NVIC_SetPriority(EXTI2_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+    NVIC_EnableIRQ(EXTI2_IRQn);
+}
+
+static void sleep_left_wakeup_irq_disable(void)
+{
+    EXTI_InitType exti = {0};
+
+    exti.EXTI_Line = EXTI_LINE2;
+    exti.EXTI_Mode = EXTI_Mode_Interrupt;
+    exti.EXTI_Trigger = EXTI_Trigger_Falling;
+    exti.EXTI_LineCmd = DISABLE;
+    EXTI_InitPeripheral(&exti);
+    EXTI_ClrITPendBit(EXTI_LINE2);
+    NVIC_DisableIRQ(EXTI2_IRQn);
+    sleep_left_irq_pressed = false;
+}
+#endif
 
 static bool debounce_right(bool raw, bool *candidate, bool *stable, uint8_t *count)
 {
@@ -255,7 +322,8 @@ static bool probe_stable_push(float value, float *average)
            ((maximum - minimum) <= 0.5f);
 }
 
-#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_WAKE
+#if (TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_WAKE) || \
+    (TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE)
 static void begin_sleep_probe(void)
 {
     if (state != TEST_STATE_WEIGHING || !zero_ready) {
@@ -268,6 +336,9 @@ static void begin_sleep_probe(void)
     probe_phase = TEST_PROBE_POWERING_DOWN;
     state = TEST_STATE_SLEEPING;
     dev_cs1237_set_probe_rate(true);
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+    sleep_left_wakeup_irq_enable();
+#endif
     dev_buzzer_disable();
     test_display_shutdown();
     vTaskSuspend(display_handle);
@@ -289,22 +360,18 @@ static void shutdown_action(void)
 static void finish_sleep_probe(bool sensor_error)
 {
     probe_phase = TEST_PROBE_IDLE;
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+    sleep_left_wakeup_irq_disable();
+#endif
     dev_cs1237_set_probe_rate(false);
     stable_reset();
     if (sensor_error) {
         set_error(TEST_ERROR_SENSOR);
     } else {
-        state = TEST_STATE_WEIGHING;
-        state_started = xTaskGetTickCount();
-        g_test_cup_wake_count++;
+        complete_startup(true);
     }
-    dev_buzzer_enable();
-    (void)dev_tm1640b_wakeup();
     vTaskResume(display_handle);
     vTaskResume(controller_handle);
-    if (!sensor_error) {
-        dev_buzzer_action(SONG_STARTUP);
-    }
 }
 
 static void set_error(uint8_t code)
@@ -384,17 +451,21 @@ static void controller_task(void *argument)
         bool right = debounce_right(right_pressed(), &right_candidate, &right_stable,
                                     &right_debounce_count);
 
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+        if (startup_sound_pending) {
+            startup_sound_pending = false;
+            dev_buzzer_enable();
+            dev_buzzer_action(SONG_STARTUP);
+        }
+#endif
+
         if (!startup_accepted) {
             if (left) {
                 if (left_started == 0U) {
                     left_started = now;
                 } else if ((now - left_started) >= pdMS_TO_TICKS(START_HOLD_MS)) {
                     startup_accepted = true;
-                    state = TEST_STATE_WEIGHING;
-                    state_started = now;
-                    (void)dev_cs1237_wakeup();
-                    (void)dev_tm1640b_wakeup();
-                    dev_buzzer_action(SONG_STARTUP);
+                    complete_startup(false);
                 }
             } else if (left_started != 0U) {
 #if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_KEEP_POWER
@@ -722,6 +793,9 @@ static void mass_task(void *argument)
 {
     TickType_t last_wake = xTaskGetTickCount();
     TickType_t last_sample_tick = last_wake;
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+    TickType_t sleep_left_started = 0U;
+#endif
     uint32_t previous_sample_count = 0U;
 
     (void)argument;
@@ -736,10 +810,47 @@ static void mass_task(void *argument)
             continue;
         }
         if (state == TEST_STATE_SLEEPING) {
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+            TickType_t probe_delay;
+
+            /* Match the normal startup trigger: sample the active-low left
+             * button every controller period and require a continuous hold. */
+            if (sleep_left_irq_pressed) {
+                if (!left_pressed()) {
+                    sleep_left_wakeup_irq_enable();
+                    sleep_left_started = 0U;
+                } else if (sleep_left_started == 0U) {
+                    sleep_left_started = now;
+                } else if ((now - sleep_left_started) >= pdMS_TO_TICKS(START_HOLD_MS)) {
+                    /* Normal startup wakes a sleeping ADC at 40 Hz. Force the
+                     * probe ADC into the same starting state before resuming. */
+                    (void)dev_cs1237_process();
+                    dev_cs1237_set_probe_rate(false);
+                    if (dev_cs1237_power_down() != NS_ERROR_BUSY) {
+                        (void)dev_cs1237_wakeup();
+                        sleep_left_started = 0U;
+                        finish_sleep_probe(false);
+                        last_wake = xTaskGetTickCount();
+                        continue;
+                    }
+                }
+                (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CONTROLLER_PERIOD_MS));
+                last_wake = xTaskGetTickCount();
+                continue;
+            } else {
+                sleep_left_started = 0U;
+            }
+            probe_delay = process_sleep_probe(now, &previous_sample_count);
+            (void)ulTaskNotifyTake(pdTRUE, probe_delay);
+#else
             vTaskDelay(process_sleep_probe(now, &previous_sample_count));
+#endif
             last_wake = xTaskGetTickCount();
             continue;
         }
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+        sleep_left_started = 0U;
+#endif
         if (state == TEST_STATE_ERROR) {
             if ((now - state_started) > pdMS_TO_TICKS(ERROR_DISPLAY_MS)) {
                 if (error_code == TEST_ERROR_SENSOR) {
@@ -803,6 +914,23 @@ static void mass_task(void *argument)
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(MASS_PERIOD_MS));
     }
 }
+
+#if TEST_SHUTDOWN_MODE == TEST_SHUTDOWN_CUP_LEFT_WAKE
+void EXTI2_IRQHandler(void)
+{
+    if (EXTI_GetITStatus(EXTI_LINE2) != RESET) {
+        BaseType_t higher_priority_task_woken = pdFALSE;
+
+        EXTI_ClrITPendBit(EXTI_LINE2);
+        if (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) == Bit_RESET) {
+            sleep_left_irq_pressed = true;
+            EXTI->IMASK &= ~(uint32_t)EXTI_LINE2;
+            vTaskNotifyGiveFromISR(mass_handle, &higher_priority_task_woken);
+            portYIELD_FROM_ISR(higher_priority_task_woken);
+        }
+    }
+}
+#endif
 
 static void display_task(void *argument)
 {
