@@ -8,36 +8,24 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
             "cacheVariables": {
-                "CMAKE_MAKE_PROGRAM": "C:/Users/liang/AppData/Local/stm32cube/bundles/ninja/1.13.2+st.1/bin/ninja.exe",
-                "ARM_GCC_BIN": "C:/Users/liang/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true
             }
         },
         {
-            "name": "Debug",
-            "displayName": "N32L406 Debug",
+            "name": "n32-debug",
+            "hidden": true,
             "inherits": "n32-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {
-            "name": "Release",
-            "displayName": "N32L406 Release",
+            "name": "n32-release",
+            "hidden": true,
             "inherits": "n32-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "Debug",
-            "configurePreset": "Debug"
-        },
-        {
-            "name": "Release",
-            "configurePreset": "Release"
         }
     ]
 }

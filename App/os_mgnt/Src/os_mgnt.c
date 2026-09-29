@@ -288,12 +288,14 @@ static __attribute__((noinline, section(".RamFunc"))) bool os_mgnt_enter_stop2_f
 
 void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime ) {
     TickType_t clampedIdleTime = xExpectedIdleTime;
+    uint32_t system_state = 0U;
 
     if(clampedIdleTime == 0U) {
         return;
     }
 
     clampedIdleTime = os_mgnt_limit_idle_ticks(clampedIdleTime);
+    (void)dev_status_get(SYSTEM_STATE, &system_state);
 
     __asm volatile( "cpsid i" ::: "memory" );
     __asm volatile( "dsb" );
@@ -304,10 +306,7 @@ void vPortSuppressTicksAndSleep( TickType_t xExpectedIdleTime ) {
         || dev_buzzer_is_playing()
         || scale_mass_mgnt_stop_blocked()
         || (s_tickless_stop_blockers != 0U)
-#if defined(DEBUG)
-        /* Debug firmware keeps RTT/AHB accessible; Release retains STOP2. */
-        || true
-#endif
+        || (system_state != SLEEPING)
         || g_tickless_stop_disabled )
     {
         if(eTaskConfirmSleepModeStatus() == eAbortSleep) {

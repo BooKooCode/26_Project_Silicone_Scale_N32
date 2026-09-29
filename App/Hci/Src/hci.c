@@ -11,6 +11,7 @@
 #include "scale_digits_display.h"
 #include "log.h"
 #include "hci.h"
+#include "gpio.h"
 
 #define HCI_LOG_INFO(...)  LOG_INFO("hci", __VA_ARGS__)
 #define HCI_LOG_ERROR(...) LOG_ERROR("hci", __VA_ARGS__)
@@ -474,6 +475,17 @@ void hci_task(void *argument) {
         /* Button fsm update */
         for(uint8_t i = 0; i < BUTTON_TOTAL_COUNT; i++) {
             button_state_update(&s_btn_mgnt, i, s_btn_gpio[i].trigger_level);
+        }
+
+        /* STOP2 wakes on the left-key falling edge. Re-arm the button
+         * startup detector so the normal startup-short-press path emits the
+         * exit-from-sleep request after debounce/hold validation. */
+        if(gpio_sleep_left_wakeup_pending()) {
+            uint32_t system_state = 0U;
+            dev_status_get(SYSTEM_STATE, &system_state);
+            if(system_state == SLEEPING) {
+                reset_button_startup_state(&s_btn_mgnt, LEFT_BUTTON_INDEX);
+            }
         }
         
         /* Remote command update : Unblock */

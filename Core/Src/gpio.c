@@ -1,6 +1,10 @@
 #include "gpio.h"
 #include "FreeRTOS.h"
+#include "task.h"
 #include "bat_meas.h"
+
+static volatile bool s_sleep_left_wakeup_enabled = false;
+static volatile bool s_sleep_left_wakeup_pending = false;
 
 void NS_GPIO_Init(void)
 {
@@ -49,10 +53,67 @@ void NS_GPIO_Init(void)
     NVIC_SetPriority(CHARGING_ENABLE_EXTI_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
 }
 
+void gpio_sleep_left_wakeup_enable(void)
+{
+    GPIO_InitType gpio = {0};
+
+    NVIC_DisableIRQ(CHARGING_ENABLE_EXTI_IRQn);
+    GPIO_ConfigEXTILine(GPIOA_PORT_SOURCE, GPIO_PIN_SOURCE2);
+    gpio.Pin = btn_left_Pin;
+    gpio.GPIO_Mode = GPIO_Mode_IT_Falling;
+    gpio.GPIO_Pull = GPIO_No_Pull;
+    gpio.GPIO_Current = GPIO_DC_2mA;
+    gpio.GPIO_Slew_Rate = GPIO_Slew_Rate_Low;
+    GPIO_InitPeripheral(btn_left_GPIO_Port, &gpio);
+    EXTI_ClrITPendBit(EXTI_LINE2);
+    NVIC_ClearPendingIRQ(CHARGING_ENABLE_EXTI_IRQn);
+    s_sleep_left_wakeup_pending = false;
+    s_sleep_left_wakeup_enabled = true;
+    NVIC_SetPriority(CHARGING_ENABLE_EXTI_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+    NVIC_EnableIRQ(CHARGING_ENABLE_EXTI_IRQn);
+}
+
+void gpio_sleep_left_wakeup_disable(void)
+{
+    GPIO_InitType gpio = {0};
+
+    s_sleep_left_wakeup_enabled = false;
+    s_sleep_left_wakeup_pending = false;
+    NVIC_DisableIRQ(CHARGING_ENABLE_EXTI_IRQn);
+    GPIO_ConfigEXTILine(GPIOB_PORT_SOURCE, GPIO_PIN_SOURCE2);
+    gpio.Pin = CHARGING_ENABLE_Pin;
+    gpio.GPIO_Mode = GPIO_Mode_IT_Rising_Falling;
+    gpio.GPIO_Pull = GPIO_No_Pull;
+    gpio.GPIO_Current = GPIO_DC_2mA;
+    gpio.GPIO_Slew_Rate = GPIO_Slew_Rate_Low;
+    GPIO_InitPeripheral(CHARGING_ENABLE_GPIO_Port, &gpio);
+    EXTI_ClrITPendBit(EXTI_LINE2);
+    NVIC_ClearPendingIRQ(CHARGING_ENABLE_EXTI_IRQn);
+    NVIC_SetPriority(CHARGING_ENABLE_EXTI_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
+    NVIC_EnableIRQ(CHARGING_ENABLE_EXTI_IRQn);
+}
+
+bool gpio_sleep_left_wakeup_pending(void)
+{
+    bool pending;
+    taskENTER_CRITICAL();
+    pending = s_sleep_left_wakeup_pending;
+    s_sleep_left_wakeup_pending = false;
+    taskEXIT_CRITICAL();
+    return pending;
+}
+
 void EXTI2_IRQHandler(void)
 {
     if (EXTI_GetITStatus(EXTI_LINE2) != RESET) {
         EXTI_ClrITPendBit(EXTI_LINE2);
-        bat_gpio_exti_handler(CHARGING_ENABLE_Pin);
+        if (s_sleep_left_wakeup_enabled) {
+            if (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) == Bit_RESET) {
+                s_sleep_left_wakeup_pending = true;
+                EXTI->IMASK &= ~(uint32_t)EXTI_LINE2;
+            }
+        } else {
+            bat_gpio_exti_handler(CHARGING_ENABLE_Pin);
+        }
     }
 }

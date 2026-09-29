@@ -12,6 +12,7 @@ target_sources(${MODULE_NAME} PRIVATE ${MODULE_SOURCES})
 
 target_include_directories(${MODULE_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${PROJECT_SOURCE_DIR}/CustomDrivers/cs1237/Inc
 )
 
 target_link_libraries(${MODULE_NAME} PRIVATE

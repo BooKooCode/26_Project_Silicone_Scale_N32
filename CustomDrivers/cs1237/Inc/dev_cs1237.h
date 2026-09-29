@@ -71,6 +71,19 @@ void dev_cs1237_read_result(int32_t * _res);
  * @retval None.
  */
 void dev_cs1237_sleeping(void);
+
+/**
+ * @brief Enter CS1237 Power-down synchronously.
+ *
+ * SCLK is driven high for longer than the datasheet minimum of 100 us.
+ *
+ * @retval NS_SUCCESS Power-down timing has completed.
+ * @retval NS_ERROR_BUSY A DMA transfer is still active; retry after it completes.
+ */
+ret_code_t dev_cs1237_power_down(void);
+
+/** Select the conversion rate used on the next wake from Power-down. */
+void dev_cs1237_set_probe_rate(bool fast);
 	
 /**
  * @brief Start waking the CS1237 without waiting for completion.

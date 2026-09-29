@@ -7,3 +7,7 @@ skills-lock.json
 
 # CMake build output
 build/
+
+# Machine-local tool paths
+.vscode/settings.json
+CMakeUserPresets.json

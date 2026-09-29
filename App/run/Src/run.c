@@ -12,6 +12,7 @@
 #include "fsm.h"
 #include "mass_meas.h"
 #include "sleep_probe.h"
+#include "gpio.h"
 
 
 #define FSM_LOG_INFO(...)     LOG_INFO("fsm", __VA_ARGS__)
@@ -276,6 +277,12 @@ static uint32_t sleeping_state_action(void) {
         dev_hw_shutdown();
     }
 #endif
+
+    if(!_is_incharging) {
+        /* Re-map EXTI2 to the active-low left key while the product is in
+         * STOP2 so a left-key press can wake the MCU. */
+        gpio_sleep_left_wakeup_enable();
+    }
     
     vTaskSuspend(NULL);
     s_fsm_os->wake_tick = xTaskGetTickCount();
@@ -285,6 +292,7 @@ static uint32_t sleeping_state_action(void) {
 
 
 static uint32_t wakeup_state_action(void) {
+    gpio_sleep_left_wakeup_disable();
     /* Hardware Power on */
     dev_hw_poweron();
     run_clock_request();

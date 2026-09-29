@@ -44,9 +44,10 @@
 #define CS1237_SPI               SPI1
 #define CS1237_TIMEOUT_MS         2U
 #define CS1237_READY_TIMEOUT_MS   1000U
-#define CS1237_POWER_DOWN_HOLD_US 100U
+#define CS1237_POWER_DOWN_HOLD_US 150U
 #define CS1237_POWER_UP_HOLD_US   10U
 #define CS1237_SETTLE_40HZ_MS     80U
+#define CS1237_SETTLE_640HZ_MS    10U
 #define CS1237_READ_TAIL_CLOCK_COUNT 3U
 #define CS1237_WRITE_CMD          0x65U
 
@@ -72,6 +73,7 @@
 #define CS1237_CH_ADC       (0x00)
 #define CS1237_PGA_128      (0x03 << 2)
 #define CS1237_RATE_40HZ    (0x01 << 4)
+#define CS1237_RATE_640HZ   (0x02 << 4)
 #define CS1237_REF_ON       (0x00 << 6)
 #define CS1237_CONFIG(pga, rate) ((pga) | (rate) | CS1237_REF_ON | CS1237_CH_ADC)
 
@@ -95,6 +97,7 @@ static volatile cs1237_state_t cs1237_state = CS1237_STATE_SLEEPING;
 static volatile cs1237_request_t cs1237_request = CS1237_REQUEST_NONE;
 static TickType_t cs1237_state_tick = 0;
 static bool cs1237_configured = false;
+static bool cs1237_probe_rate_fast = false;
 volatile uint32_t g_cs1237_last_error = NS_SUCCESS;
 volatile uint32_t g_cs1237_debug_stage = CS1237_STAGE_IDLE;
 volatile uint32_t g_cs1237_debug_datasize = 0U;
@@ -351,24 +354,7 @@ ret_code_t dev_cs1237_process(void)
 	}
 
 	if(request == CS1237_REQUEST_SLEEP) {
-		uint32_t primask = __get_PRIMASK();
-		__disable_irq();
-		if(sample_dma_active) {
-			__set_PRIMASK(primask);
-			return NS_ERROR_BUSY;
-		}
-		cs1237_request = CS1237_REQUEST_NONE;
-		cs1237_drdy_irq_disable();
-		__set_PRIMASK(primask);
-		if(cs1237_state != CS1237_STATE_SLEEPING) {
-			cs1237_dma_stop();
-			SPI_Enable(CS1237_SPI, DISABLE);
-			cs1237_sck_as_gpio(true);
-			cs1237_delay_us(CS1237_POWER_DOWN_HOLD_US);
-		}
-		cs1237_state = CS1237_STATE_SLEEPING;
-		g_cs1237_debug_stage = CS1237_STAGE_IDLE;
-		return NS_SUCCESS;
+		return dev_cs1237_power_down();
 	}
 
 	if(request == CS1237_REQUEST_WAKEUP) {
@@ -379,12 +365,9 @@ ret_code_t dev_cs1237_process(void)
 			cs1237_delay_us(CS1237_POWER_UP_HOLD_US);
 			NS_SPI1_Init();
 			cs1237_state_tick = now;
-			if(cs1237_configured) {
-				cs1237_state = CS1237_STATE_SETTLING;
-				g_cs1237_debug_stage = CS1237_STAGE_WAKEUP_SETTLING;
-			} else {
-				cs1237_state = CS1237_STATE_WAIT_DRDY;
-			}
+			/* Re-write Config after every Power-down wake so the probe rate
+			 * can differ from the normal weighing rate. */
+			cs1237_state = CS1237_STATE_WAIT_DRDY;
 			g_cs1237_last_error = NS_SUCCESS;
 		}
 	}
@@ -403,7 +386,9 @@ ret_code_t dev_cs1237_process(void)
 				return NS_ERROR_BUSY;
 			}
 
-			err = cs1237_write_config(CS1237_CONFIG(CS1237_PGA_128, CS1237_RATE_40HZ));
+			err = cs1237_write_config(CS1237_CONFIG(
+				CS1237_PGA_128,
+				cs1237_probe_rate_fast ? CS1237_RATE_640HZ : CS1237_RATE_40HZ));
 			if(err != NS_SUCCESS) {
 				cs1237_state = CS1237_STATE_ERROR;
 				cs1237_record_error(err);
@@ -416,7 +401,9 @@ ret_code_t dev_cs1237_process(void)
 			return NS_ERROR_BUSY;
 
 		case CS1237_STATE_SETTLING:
-			if((now - cs1237_state_tick) < pdMS_TO_TICKS(CS1237_SETTLE_40HZ_MS)) {
+			uint32_t settle_ms = cs1237_probe_rate_fast ?
+				CS1237_SETTLE_640HZ_MS : CS1237_SETTLE_40HZ_MS;
+			if((now - cs1237_state_tick) < pdMS_TO_TICKS(settle_ms)) {
 				return NS_ERROR_BUSY;
 			}
 			cs1237_state = CS1237_STATE_READY;
@@ -618,6 +605,34 @@ void dev_cs1237_read_result(int32_t * _res)
 void dev_cs1237_sleeping(void)
 {
 	cs1237_request = CS1237_REQUEST_SLEEP;
+}
+
+void dev_cs1237_set_probe_rate(bool fast)
+{
+	cs1237_probe_rate_fast = fast;
+}
+
+ret_code_t dev_cs1237_power_down(void)
+{
+	uint32_t primask = __get_PRIMASK();
+
+	__disable_irq();
+	cs1237_request = CS1237_REQUEST_SLEEP;
+	if(sample_dma_active) {
+		__set_PRIMASK(primask);
+		return NS_ERROR_BUSY;
+	}
+
+	cs1237_request = CS1237_REQUEST_NONE;
+	cs1237_drdy_irq_disable();
+	cs1237_dma_stop();
+	SPI_Enable(CS1237_SPI, DISABLE);
+	cs1237_sck_as_gpio(true);
+	cs1237_delay_us(CS1237_POWER_DOWN_HOLD_US);
+	cs1237_state = CS1237_STATE_SLEEPING;
+	g_cs1237_debug_stage = CS1237_STAGE_IDLE;
+	__set_PRIMASK(primask);
+	return NS_SUCCESS;
 }
 
 ret_code_t dev_cs1237_wakeup(void)
