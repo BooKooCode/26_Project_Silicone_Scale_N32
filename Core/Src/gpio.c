@@ -66,6 +66,9 @@ void NS_GPIO_Init(void)
 
 void gpio_sleep_left_wakeup_enable(void)
 {
+#if !SLEEP_LEFT_KEY_WAKE_ENABLED
+    s_sleep_left_wakeup_configured = true;
+#else
     GPIO_InitType gpio = {0};
 
     NVIC_DisableIRQ(CHARGING_ENABLE_EXTI_IRQn);
@@ -84,6 +87,7 @@ void gpio_sleep_left_wakeup_enable(void)
         (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) != Bit_RESET);
     NVIC_SetPriority(CHARGING_ENABLE_EXTI_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
     NVIC_EnableIRQ(CHARGING_ENABLE_EXTI_IRQn);
+#endif
 }
 
 void gpio_sleep_left_wakeup_disable(void)
@@ -109,6 +113,7 @@ void gpio_sleep_left_wakeup_disable(void)
 
 void gpio_sleep_left_wakeup_arm_if_released(void)
 {
+#if SLEEP_LEFT_KEY_WAKE_ENABLED
     if(!s_sleep_left_wakeup_configured || s_sleep_left_wakeup_enabled ||
        (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) == Bit_RESET)) {
         return;
@@ -118,11 +123,21 @@ void gpio_sleep_left_wakeup_arm_if_released(void)
     NVIC_ClearPendingIRQ(CHARGING_ENABLE_EXTI_IRQn);
     EXTI->IMASK |= EXTI_LINE2;
     s_sleep_left_wakeup_enabled = true;
+#endif
 }
 
 bool gpio_sleep_left_wakeup_is_enabled(void)
 {
     return s_sleep_left_wakeup_enabled;
+}
+
+bool gpio_sleep_left_wakeup_wait_ready(void)
+{
+#if SLEEP_LEFT_KEY_WAKE_ENABLED
+    return s_sleep_left_wakeup_enabled;
+#else
+    return s_sleep_left_wakeup_configured;
+#endif
 }
 
 bool gpio_sleep_left_wakeup_pending(void)
@@ -157,7 +172,7 @@ void EXTI2_IRQHandler(void)
      * IRQ8 re-entry loop. */
     if ((EXTI->PEND & EXTI_LINE2) != 0U) {
         EXTI_ClrITPendBit(EXTI_LINE2);
-        if (s_sleep_left_wakeup_configured) {
+        if (SLEEP_LEFT_KEY_WAKE_ENABLED && s_sleep_left_wakeup_configured) {
             if (!s_sleep_left_wakeup_enabled) {
                 return;
             }

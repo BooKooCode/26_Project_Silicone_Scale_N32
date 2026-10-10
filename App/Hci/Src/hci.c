@@ -480,12 +480,11 @@ void hci_task(void *argument) {
             gpio_sleep_left_wakeup_arm_if_released();
         }
         if((system_state == SLEEPING) &&
-           gpio_sleep_left_wakeup_is_enabled() &&
+             gpio_sleep_left_wakeup_wait_ready() &&
            !sleep_button_polling) {
-            /* The EXTI notification is retained if it arrives before this
-             * call, unlike suspend/resume which can lose that edge.  The EXTI
-             * gate also distinguishes a completed product sleep transition
-             * from the initial SLEEPING status used before the first startup. */
+            /* The notification is retained if it arrives before this call.
+             * The wait-ready gate distinguishes completed product sleep from
+             * the initial SLEEPING status used before the first startup. */
             (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
             s_hci_os->wake_tick = xTaskGetTickCount();
         } else {

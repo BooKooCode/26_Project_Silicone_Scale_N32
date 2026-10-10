@@ -15,6 +15,9 @@
 #include "dev_buzzer.h"
 #include "gpio.h"
 
+#if !SLEEP_LEFT_KEY_WAKE_ENABLED && (SLEEP_PROBE_CUP_WAKE_ENABLED != 1U)
+//#error "Sleep without cup wake requires left-key wake"
+#endif
 
 #define FSM_LOG_INFO(...)     LOG_INFO("fsm", __VA_ARGS__)
 
@@ -285,7 +288,7 @@ static uint32_t sleeping_state_action(void) {
         _is_incharging = true;
     }
 #if SLEEP_PROBE_CUP_WAKE_ENABLED
-    mass_sleep_probe_pause(_is_incharging);
+    mass_sleep_probe_pause(_is_incharging || (SLEEP_PROBE_CUP_WAKE_ENABLED == 2U));
 #else
     if(!_is_incharging) {
         dev_hw_shutdown();
@@ -846,9 +849,11 @@ void FSMreq_task(void * argument) {
             } break;
 
             case SYS_SLEEP_PROBE_RETRY_REQ: {
+#if SLEEP_PROBE_CUP_WAKE_ENABLED != 2U
                 if((_sys_state == SLEEPING) && s_probe_error_visible) {
                     mass_sleep_probe_pause(false);
                 }
+#endif
             } break;
             
             case SYS_CALI_REQ: {
@@ -990,8 +995,10 @@ void FSMreq_task(void * argument) {
                     }
                 }
                 if(_sys_state == SLEEPING) {
+#if SLEEP_PROBE_CUP_WAKE_ENABLED != 2U
                     mass_sleep_probe_reset_zero_baseline();
                     mass_sleep_probe_pause(false);
+#endif
                 }
             } break;
             

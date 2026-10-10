@@ -9,7 +9,7 @@ extern "C" {
 #include <stdint.h>
 
 #ifndef SLEEP_PROBE_CUP_WAKE_ENABLED
-#define SLEEP_PROBE_CUP_WAKE_ENABLED            1U
+#define SLEEP_PROBE_CUP_WAKE_ENABLED            2U
 #endif
 #ifndef SLEEP_PROBE_PERIOD_MS
 #define SLEEP_PROBE_PERIOD_MS                   2000UL
@@ -43,8 +43,9 @@ extern "C" {
 #endif
 
 #if (SLEEP_PROBE_CUP_WAKE_ENABLED != 0U) && \
-    (SLEEP_PROBE_CUP_WAKE_ENABLED != 1U)
-#error "SLEEP_PROBE_CUP_WAKE_ENABLED must be 0 or 1"
+    (SLEEP_PROBE_CUP_WAKE_ENABLED != 1U) && \
+    (SLEEP_PROBE_CUP_WAKE_ENABLED != 2U)
+#error "SLEEP_PROBE_CUP_WAKE_ENABLED must be 0, 1 or 2"
 #endif
 #if SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS == 0UL
 #error "Sleep probe first-sample timeout must be greater than zero"
