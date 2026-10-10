@@ -1,4 +1,4 @@
-# N32L406RB 编译、烧录与调试
+# N32G435CBL7 编译、烧录与调试
 
 ## 环境配置
 
@@ -20,8 +20,19 @@ Copy-Item CMakeUserPresets.example.json CMakeUserPresets.json
 远程仓库。仓库中的 `settings.example.json` 和
 `CMakeUserPresets.example.json` 仅作为配置模板。
 
-连接已供电的 N32L406RB 开发板，并确认 J-Link 的 SWD、GND 和 VTref
+连接已供电的 N32G435CBL7 开发板，并确认 J-Link 的 SWD、GND 和 VTref
 连接正确。烧录或调试前，请关闭 J-Flash 以及其他正在占用 J-Link 的程序。
+
+如果出现 `Failed to power up DAP`、`GDB Server Quit Unexpectedly` 或超时：
+
+1. 完全断开目标板电源，确认 J-Link 的 VTref、GND、SWDIO、SWCLK 和 NRST
+   均已连接；其中 NRST 用于恢复已经进入 STOP2 或异常状态的芯片。
+2. 将板子重新上电，把本地 `n32.swdSpeed` 暂时设为 `1`，先运行 `JLink-Flash`。
+3. 如果仍不能连接，按住板上的复位键，再启动烧录任务；看到 J-Link 开始连接
+   后再松开复位键。
+
+Debug 版本默认屏蔽 STOP2，仅使用 WFI，便于连接和单步调试。Release 版本仍保留
+   原有的 STOP2 低功耗策略。
 
 ## 编译
 
@@ -42,8 +53,8 @@ Copy-Item CMakeUserPresets.example.json CMakeUserPresets.json
 成功编译后，固件位于：
 
 ```text
-build/Debug/N32L406_Template.elf
-build/Release/N32L406_Template.elf
+build/Debug/N32G435_Template.elf
+build/Release/N32G435_Template.elf
 ```
 
 ## 烧录
@@ -71,7 +82,7 @@ ELF 文件。
 
 ## 调试
 
-在“运行和调试”中选择 `N32L406RB: J-Link Debug`，然后按 `F5`。
+在“运行和调试”中选择 `N32G435CBL7: J-Link Debug`，然后按 `F5`。
 调试配置会先编译 Debug 版本、下载 ELF 文件，并在 `main` 函数处停止。
 
 常用快捷键：
@@ -90,6 +101,6 @@ ELF 文件。
 调试会话占用 J-Link 时不要同时执行烧录任务。不要使用 CMake 的
 Run/Launch 命令运行固件，因为 Windows 无法直接执行 ARM ELF 文件。
 
-项目使用本机配置的 J-Link 版本和 SWD 速度。现有 128 KB Flash、16 KB RAM
-应用布局保持不变，链接脚本文件名继续沿用原有 CB 名称。烧录和调试流程不会
+项目使用本机配置的 J-Link 版本和 SWD 速度。N32G435CBL7 使用 128 KB Flash、32 KB RAM，
+应用布局保留版本信息和参数数据分区。烧录和调试流程不会
 执行芯片解锁或修改 Option Bytes。

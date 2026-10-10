@@ -72,12 +72,8 @@ void app_error_trace_record_hardfault_frame(uint32_t *stack_frame)
     g_app_error_trace_last.fault_xpsr = stack_frame[7];
 }
 
-void app_error_trace_record_from_error_handler(void)
+void app_error_trace_record_from_error_handler(uint32_t caller_pc)
 {
-    uint32_t caller_pc = 0U;
-#if defined(__GNUC__) || defined(__clang__)
-    caller_pc = (uint32_t)(uintptr_t)__builtin_return_address(0);
-#endif
     app_error_trace_record_if_empty(BOOKOO_ERROR_HARDFAULT, caller_pc, "Error_Handler", 0U);
 }
 

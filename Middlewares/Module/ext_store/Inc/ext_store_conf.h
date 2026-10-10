@@ -7,7 +7,7 @@
 #define PARAM_AREA_CAPACITY                 0x00200000
 #define PARAM_AREA_END_ADDR_IN_FLASH        (PARAM_AREA_START_ADDR_IN_FLASH + PARAM_AREA_CAPACITY)
 
-#define HASH_TABLE_SIZE                     251U
+#define HASH_TABLE_SIZE                     37U
 #define STORE_KEY_MAX_LEN                   24U
 #define STORE_STRING_MAX_LEN                64U
 

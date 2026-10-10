@@ -1,0 +1,7 @@
+connect
+h
+mem32 0x20007FC8 20
+mem32 0x40021010 4
+mem32 0x40007000 8
+mem32 0x40022000 2
+exit

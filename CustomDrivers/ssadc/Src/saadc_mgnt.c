@@ -18,7 +18,7 @@
 #include "app_error.h"
 #include "adc.h"
 #include "main.h"
-#include "n32l40x_adc.h"
+#include "n32g43x_adc.h"
 #include "timer_tools.h"
 
 #ifndef ASSERT

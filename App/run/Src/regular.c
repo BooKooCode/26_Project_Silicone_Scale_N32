@@ -467,19 +467,22 @@ void regularity_task(void * argument) {
 	for(;;) {
         uint32_t _sys_state = 0;
         dev_status_get(SYSTEM_STATE, &_sys_state);
-        uint32_t delay_ms = (_sys_state == SLEEPING) ?
-                            SLEEP_PROBE_PERIOD_MS : TASK_REGULAR_WAKEUP_INTERVAL_MS;
-		vTaskDelayUntil(&_task_info[OS_TASK_REGULAR].wake_tick, pdMS_TO_TICKS(delay_ms));
+		if(_sys_state == SLEEPING) {
+			(void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+			_task_info[OS_TASK_REGULAR].wake_tick = xTaskGetTickCount();
+			continue;
+		}
+		vTaskDelayUntil(&_task_info[OS_TASK_REGULAR].wake_tick,
+				pdMS_TO_TICKS(TASK_REGULAR_WAKEUP_INTERVAL_MS));
 		dev_status_get(SYSTEM_STATE, &_sys_state);
 
-        app_watchdog_feed();
         if(_sys_state != SLEEPING) {
+            app_watchdog_feed();
             /* Scan rtos thread state */
             for(uint8_t i = OS_TASK_REGULAR; i < OS_TASK_TOTAL_COUNT; i++) {
                 _task_info[i].free_stack = uxTaskGetStackHighWaterMark(_task_info[i].handler);
             }
+            read_rtt_recv(_sys_state);
         }        
-        /* Decode rtt cmd */
-        read_rtt_recv(_sys_state);
 	}
 }

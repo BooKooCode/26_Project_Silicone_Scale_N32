@@ -1,0 +1,8 @@
+/*********************************************************************
+* Configure J-Link before its first target connection attempt.
+**********************************************************************
+*/
+int ConfigTargetSettings(void) {
+  JLINK_ExecCommand("SetResetType = 3");
+  return 0;
+}

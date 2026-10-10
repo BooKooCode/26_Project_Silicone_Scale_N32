@@ -1,0 +1,4 @@
+connect
+h
+mem32 0x20005674 16
+exit

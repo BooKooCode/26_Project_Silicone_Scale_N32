@@ -1,0 +1,10 @@
+connect
+h
+SetBP 0x08004598
+SetBP 0x08004440
+r
+g
+Sleep 100
+h
+regs
+exit

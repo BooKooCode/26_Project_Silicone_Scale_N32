@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(N32L406_Template LANGUAGES C ASM)
+project(N32G435_Template LANGUAGES C ASM)
 
 include(cmake/build-options.cmake)
 
@@ -8,10 +8,10 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS")
-set(PERIPH_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/N32L40x_StdPeriph")
+set(CMSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS_G43x")
+set(PERIPH_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Drivers/N32G43x_StdPeriph")
 set(LINKER_SCRIPT
-    "${CMAKE_CURRENT_SOURCE_DIR}/Linker/n32l406cb_flash.ld"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Linker/n32g435cb_flash.ld"
 )
 
 file(GLOB PERIPH_SOURCES CONFIGURE_DEPENDS
@@ -19,8 +19,8 @@ file(GLOB PERIPH_SOURCES CONFIGURE_DEPENDS
 )
 
 add_executable(${PROJECT_NAME}
-    Startup/startup_n32l40x_gcc.s
-    "${CMSIS_DIR}/device/system_n32l40x.c"
+    Startup/startup_n32g43x_gcc.s
+    "${CMSIS_DIR}/device/system_n32g43x.c"
     ${PERIPH_SOURCES}
 )
 
@@ -65,7 +65,7 @@ target_include_directories(n32_platform INTERFACE
 )
 
 target_compile_definitions(n32_platform INTERFACE
-    N32L40X
+    N32G43X
     USE_STDPERIPH_DRIVER
     SYSCLK_SRC=1
     SYSCLK_FREQ=16000000

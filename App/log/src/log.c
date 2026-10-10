@@ -13,6 +13,7 @@
 #include "tim.h"
 #include "os_monitor.h"
 #include "default_parameters.h"
+#include "dev_status.h"
 #include "log.h"
 
 
@@ -355,7 +356,13 @@ static void log_rx_task(void *argument) {
     osEventFlagsWait(os_init_eventHandle, LOG_INIT_BIT, osFlagsWaitAll | osFlagsNoClear, osWaitForever);
     uint32_t tick = osKernelGetTickCount();
     while(true) {
-        vTaskDelayUntil(&tick, pdMS_TO_TICKS(LOG_RX_SCAN_PERIOD_MS));
+        uint32_t system_state = 0U;
+        uint32_t scan_period_ms = LOG_RX_SCAN_PERIOD_MS;
+        (void)dev_status_get(SYSTEM_STATE, &system_state);
+        if(system_state == SLEEPING) {
+            scan_period_ms = TASK_REGULAR_SLEEP_INTERVAL_MS;
+        }
+        vTaskDelayUntil(&tick, pdMS_TO_TICKS(scan_period_ms));
         if(0 == SEGGER_RTT_HasData(LOG_RTT_CHANNEL)) {
             continue;
         }

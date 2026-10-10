@@ -637,6 +637,20 @@ ret_code_t dev_cs1237_power_down(void)
 
 ret_code_t dev_cs1237_wakeup(void)
 {
+	/* A DMA/DRDY fault leaves the converter in ERROR. Treat the next
+	 * explicit wake as a hardware re-sync instead of returning the latched
+	 * error forever; the normal wake state machine will reconfigure CS1237. */
+	if(cs1237_state == CS1237_STATE_ERROR) {
+		cs1237_dma_stop();
+		SPI_Enable(CS1237_SPI, DISABLE);
+		cs1237_drdy_irq_disable();
+		cs1237_sck_as_gpio(true);
+		sample_dma_active = false;
+		cs1237_request = CS1237_REQUEST_NONE;
+		cs1237_state = CS1237_STATE_SLEEPING;
+		g_cs1237_debug_stage = CS1237_STAGE_IDLE;
+	}
+
 	if(cs1237_state == CS1237_STATE_READY) {
 		return NS_SUCCESS;
 	}
@@ -661,6 +675,25 @@ bool dev_cs1237_is_sleeping(void)
 bool dev_cs1237_transfer_active(void)
 {
 	return sample_dma_active;
+}
+
+void dev_cs1237_restore_after_stop2(void)
+{
+	if(cs1237_state == CS1237_STATE_SLEEPING) {
+		return;
+	}
+
+	/* SPI1 and DMA lose their working configuration in STOP2 on N32G435. */
+	NS_SPI1_Init();
+	cs1237_dma_stop();
+	if(cs1237_state == CS1237_STATE_READY) {
+		cs1237_drdy_irq_enable();
+		if(GPIO_ReadInputDataBit(CS1237_DRDY_PORT, CS1237_DRDY_PIN) == 0U) {
+			dev_cs1237_on_drdy_falling_isr();
+		}
+	} else {
+		cs1237_drdy_irq_disable();
+	}
 }
 #endif
 /**

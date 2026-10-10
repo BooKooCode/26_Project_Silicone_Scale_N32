@@ -21,6 +21,8 @@ static os_task_info_t *s_bat_os = NULL;
 static bool s_sample_finished = true;
 static bool s_full_charge_reported = false;
 static SemaphoreHandle_t s_sample_mutex = NULL;
+static volatile bool s_bat_result_pending = false;
+static volatile uint8_t s_bat_result_percent = 0U;
 
 
 saadc_mgnt_pin_t saadc_cfgs[1] = {
@@ -84,28 +86,37 @@ static void bat_sample_timeout_handler(TimerHandle_t xTimer) {
         return;
     }
     if(is_sample_finished) {
-        FORMAT_4BYTES_U _value = {0};
-        _value.us8[0] = bat_percent;
-        dev_var_set(POWER_PERCENT_INDEX, &_value);
-
-        uint32_t _is_incharging = false;
-        dev_status_get(INCHARGING_STATE, &_is_incharging);
-
-        if(false == _is_incharging) {
-            /* Low power protection request */
-            if(_value.us8[0] == 0) {
-                uint8_t FSM_cob = SYS_LOWPOWER_PROTECT_REQ;
-                send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
-            }
-            /* Low power warning indication */
-            else if(_value.us8[0] <= 10) {
-                digits_disp_req(DISP_LOWPOWER_INTOWARNING_REQ);
-            }
-            /* No indication */
-            else {
-                digits_disp_req(DISP_LOWPOWER_EXITWARNING_REQ);
-            }
+        /* Timer callbacks must not call APIs that may block on a mutex. */
+        s_bat_result_percent = bat_percent;
+        s_bat_result_pending = true;
+        if(s_bat_os != NULL && s_bat_os->handler != NULL) {
+            xTaskNotifyGive(s_bat_os->handler);
         }
+    }
+}
+
+static void bat_process_pending_result(void)
+{
+    FORMAT_4BYTES_U value = {0};
+    uint32_t is_incharging = false;
+    uint8_t fsm_request = SYS_LOWPOWER_PROTECT_REQ;
+
+    if(!s_bat_result_pending) {
+        return;
+    }
+    s_bat_result_pending = false;
+    value.us8[0] = s_bat_result_percent;
+    dev_var_set(POWER_PERCENT_INDEX, &value);
+    dev_status_get(INCHARGING_STATE, &is_incharging);
+    if(is_incharging) {
+        return;
+    }
+    if(value.us8[0] == 0U) {
+        send_queue_belong_task(OS_TASK_FSMREQ, &fsm_request);
+    } else if(value.us8[0] <= 10U) {
+        digits_disp_req(DISP_LOWPOWER_INTOWARNING_REQ);
+    } else {
+        digits_disp_req(DISP_LOWPOWER_EXITWARNING_REQ);
     }
 }
 
@@ -252,13 +263,20 @@ void bat_task(void * argument) {
         dev_status_get(SYSTEM_STATE, &_sys_state);
         uint32_t _is_charge = false;
         dev_status_get(INCHARGING_STATE, &_is_charge);
+        if((_sys_state == SLEEPING) && !_is_charge) {
+            bat_process_pending_result();
+            (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            s_bat_os->wake_tick = xTaskGetTickCount();
+            continue;
+        }
 		full_charged_poll();
         
         /* Keep the battery ADC disabled while business sleep is active. */
         if(_sys_state != SLEEPING) {
             start_bat_sample();
         }
-        
+
+        bat_process_pending_result();
         vTaskDelayUntil(&s_bat_os->wake_tick, pdMS_TO_TICKS(TASK_BAT_INTERVAL_MS));
 	}
 }

@@ -1,0 +1,4 @@
+connect
+h
+mem32 0x20007FC0 20
+exit

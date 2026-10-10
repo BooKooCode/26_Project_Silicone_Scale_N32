@@ -93,6 +93,7 @@ void dev_cs1237_set_probe_rate(bool fast);
 ret_code_t dev_cs1237_wakeup(void);
 bool dev_cs1237_is_sleeping(void);
 bool dev_cs1237_transfer_active(void);
+void dev_cs1237_restore_after_stop2(void);
 
 
 /** @} */

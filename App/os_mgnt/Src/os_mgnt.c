@@ -17,10 +17,12 @@
 #include "log.h"
 #include "main.h"
 #include "rtc.h"
-#include "n32l40x_pwr.h"
+#include "n32g43x_dbg.h"
+#include "n32g43x_pwr.h"
 
 #include "os_mgnt.h"
 #include "dev_buzzer.h"
+#include "gpio.h"
 #include "scale_mass_mgnt.h"
 
 
@@ -52,16 +54,16 @@ void timingreq_task(void * arg);
 void debug_task(void *argument);
 
 os_task_info_t os_task_info[OS_TASK_TOTAL_COUNT] = {
-    {.name = "App.Regular",     .task_code = regularity_task,   .priority = 1,  .stack_size = 288,  .paramaters = os_task_info},    /* OS_TASK_REGULAR */
+    {.name = "App.Regular",     .task_code = regularity_task,   .priority = 1,  .stack_size = 160,  .paramaters = os_task_info},    /* OS_TASK_REGULAR */
     {.name = "App.Store",       .task_code = store_task,        .priority = 2,  .stack_size = 256,  .paramaters = os_task_info},    /* OS_TASK_STORE */
-    {.name = "App.Hci",         .task_code = hci_task,          .priority = 2,  .stack_size = 192,  .paramaters = os_task_info},    /* OS_TASK_HCI */
-    {.name = "App.Bat",         .task_code = bat_task,          .priority = 1,  .stack_size = 128,  .paramaters = os_task_info},    /* OS_TASK_BAT */
-    {.name = "App.Disp",        .task_code = disp_task,         .priority = 2,  .stack_size = 128,  .paramaters = os_task_info},    /* OS_TASK_DISP */
-    {.name = "App.Mass",        .task_code = mass_task,         .priority = 3,  .stack_size = 192,  .paramaters = os_task_info},    /* OS_TASK_MASS */
-    {.name = "App.FSM",         .task_code = FSM_task,          .priority = 3,  .stack_size = 256,  .paramaters = os_task_info},    /* OS_TASK_FSM */
-    {.name = "App.FSMreq",      .task_code = FSMreq_task,       .priority = 5,  .stack_size = 192,  .paramaters = os_task_info},    /* OS_TASK_FSMREQ */
-    {.name = "App.timreq",      .task_code = timingreq_task,    .priority = 4,  .stack_size = 80,   .paramaters = os_task_info},    /* OS_TASK_TIMREQ */
-    {.name = "App.Debug",       .task_code = debug_task,        .priority = 2,  .stack_size = 96,   .paramaters = os_task_info},    /* OS_TASK_DEBUG */
+    {.name = "App.Hci",         .task_code = hci_task,          .priority = 2,  .stack_size = 100,  .paramaters = os_task_info},    /* OS_TASK_HCI */
+    {.name = "App.Bat",         .task_code = bat_task,          .priority = 1,  .stack_size = 80,  .paramaters = os_task_info},    /* OS_TASK_BAT */
+    {.name = "App.Disp",        .task_code = disp_task,         .priority = 2,  .stack_size = 110,  .paramaters = os_task_info},    /* OS_TASK_DISP */
+    {.name = "App.Mass",        .task_code = mass_task,         .priority = 3,  .stack_size = 110,  .paramaters = os_task_info},    /* OS_TASK_MASS */
+    {.name = "App.FSM",         .task_code = FSM_task,          .priority = 3,  .stack_size = 192,  .paramaters = os_task_info},    /* OS_TASK_FSM */
+    {.name = "App.FSMreq",      .task_code = FSMreq_task,       .priority = 5,  .stack_size = 180,  .paramaters = os_task_info},    /* OS_TASK_FSMREQ */
+    {.name = "App.timreq",      .task_code = timingreq_task,    .priority = 4,  .stack_size = 60,   .paramaters = os_task_info},    /* OS_TASK_TIMREQ */
+    {.name = "App.Debug",       .task_code = debug_task,        .priority = 2,  .stack_size = 48,   .paramaters = os_task_info},    /* OS_TASK_DEBUG */
 };
 
 
@@ -94,6 +96,41 @@ void os_mgnt_set_stop_block(uint32_t blocker, bool blocked)
     }
     taskEXIT_CRITICAL();
 }
+
+
+void os_mgnt_notify_task(OS_TASK_IDNEX_E task_index)
+{
+    if((task_index < OS_TASK_TOTAL_COUNT) &&
+       (os_task_info[task_index].handler != NULL)) {
+        xTaskNotifyGive(os_task_info[task_index].handler);
+    }
+}
+
+
+void os_mgnt_notify_task_from_isr(OS_TASK_IDNEX_E task_index)
+{
+    BaseType_t yield = pdFALSE;
+
+    if((task_index < OS_TASK_TOTAL_COUNT) &&
+       (os_task_info[task_index].handler != NULL)) {
+        vTaskNotifyGiveFromISR(os_task_info[task_index].handler, &yield);
+        portYIELD_FROM_ISR(yield);
+    }
+}
+
+
+void os_mgnt_notify_task_from_sleep(OS_TASK_IDNEX_E task_index)
+{
+    if((task_index < OS_TASK_TOTAL_COUNT) &&
+       (os_task_info[task_index].handler != NULL)) {
+        /* Tickless idle runs with the scheduler suspended.  The ISR-safe
+         * notification path queues the task on xPendingReadyList; omitting a
+         * yield keeps PendSV from running until the scheduler is resumed. */
+        vTaskNotifyGiveFromISR(os_task_info[task_index].handler, NULL);
+    }
+}
+
+
 
 static uint32_t os_mgnt_rtc_subticks_per_second(void)
 {
@@ -240,6 +277,10 @@ void PostSleepProcessing(uint32_t ulExpectedIdleTime) {
 
     if(s_stopModeEntered) {
         SystemClock_RestoreFromStop2();
+        scale_mass_mgnt_restore_after_stop2();
+        if(gpio_sleep_left_wakeup_capture_level()) {
+            os_mgnt_notify_task_from_sleep(OS_TASK_HCI);
+        }
         PWR_ClearFlag(PWR_WKUP0_FLAG);
         PWR_ClearFlag(PWR_WKUP1_FLAG);
         PWR_ClearFlag(PWR_WKUP2_FLAG);
@@ -269,7 +310,9 @@ static __attribute__((noinline, section(".RamFunc"))) bool os_mgnt_enter_stop2_f
             return false;
         }
     }
-    PWR->CTRL3 = (PWR->CTRL3 & ~(uint32_t)PWR_CTRL3_RAMRETMASK) |
+    uint32_t previous_ctrl3 = PWR->CTRL3;
+    PWR->CTRL3 = (previous_ctrl3 &
+                  ~((uint32_t)PWR_CTRL3_RAMRETMASK | PWR_CTRL3_IWKUPLEN)) |
                  PWR_CTRL3_RAM1RET | PWR_CTRL3_RAM2RET;
     uint32_t previous_mode = PWR->CTRL1 & PWR_CTRL1_LPMSELMASK;
     PWR->CTRL1 = (PWR->CTRL1 & ~(uint32_t)PWR_CTRL1_LPMSELMASK) | PWR_CTRL1_STOP2;
@@ -281,6 +324,10 @@ static __attribute__((noinline, section(".RamFunc"))) bool os_mgnt_enter_stop2_f
     __ISB();
     SCB->SCR &= ~(uint32_t)SCB_SCR_SLEEPDEEP_Msk;
     PWR->CTRL1 = (PWR->CTRL1 & ~(uint32_t)PWR_CTRL1_LPMSELMASK) | previous_mode;
+    PWR->CTRL3 = (PWR->CTRL3 &
+                  ~((uint32_t)PWR_CTRL3_RAMRETMASK | PWR_CTRL3_IWKUPLEN)) |
+                 (previous_ctrl3 &
+                  ((uint32_t)PWR_CTRL3_RAMRETMASK | PWR_CTRL3_IWKUPLEN));
     __DSB();
     __ISB();
     return true;

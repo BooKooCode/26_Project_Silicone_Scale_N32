@@ -1,0 +1,8 @@
+exec SetResetType = 3
+connect
+h
+mem32 0x40010800 12
+mem32 0x40010400 8
+mem32 0xE0042000 4
+mem32 0xE000ED04 1
+exit

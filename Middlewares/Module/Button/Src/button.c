@@ -277,6 +277,9 @@ void button_state_update(btn_event_mgnt_t *btn_mgnt, uint8_t button_index, BUTTO
 
 void reset_button_startup_state(btn_event_mgnt_t *btn_mgnt, uint8_t button_index) {
     button_statistic_t *stat = GET_BTN_STAT(btn_mgnt, button_index);
+    stat->press_count = 0;
+    stat->last_trigger = false;
+    stat->startup_press_valid = false;
     stat->is_startup = true;
 }
 

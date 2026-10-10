@@ -1,9 +1,9 @@
 #include "rtc.h"
 #include "main.h"
-#include "n32l40x_exti.h"
-#include "n32l40x_pwr.h"
-#include "n32l40x_rcc.h"
-#include "n32l40x_rtc.h"
+#include "n32g43x_exti.h"
+#include "n32g43x_pwr.h"
+#include "n32g43x_rcc.h"
+#include "n32g43x_rtc.h"
 #include "FreeRTOS.h"
 #include <stddef.h>
 

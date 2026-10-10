@@ -1,0 +1,12 @@
+exec SetResetType = 3
+connect
+h
+SetBP 0x08004834
+r
+g
+Sleep 1000
+h
+regs
+mem32 0xE000ED28 3
+mem32 0x20005674 20
+exit

@@ -36,7 +36,7 @@ extern volatile app_error_trace_info_t g_app_error_trace_last;
 
 void app_error_trace_record(uint32_t error_code, uint32_t caller_pc, const char *file, uint32_t line);
 void app_error_trace_record_if_empty(uint32_t error_code, uint32_t caller_pc, const char *file, uint32_t line);
-void app_error_trace_record_from_error_handler(void);
+void app_error_trace_record_from_error_handler(uint32_t caller_pc);
 void app_error_trace_record_hardfault_frame(uint32_t *stack_frame);
 void app_error_trace_set_task_name(const char *task_name);
 

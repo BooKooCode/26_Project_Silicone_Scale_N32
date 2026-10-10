@@ -1,7 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include "n32l40x.h"
+#include "n32g43x.h"
 
 #ifdef __cplusplus
 extern "C" {

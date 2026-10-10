@@ -9,7 +9,7 @@
 #include "log.h"
 #include "main.h"
 #include "dev_status.h"
-#include "n32l40x_dbg.h"
+#include "n32g43x_dbg.h"
 
 
 static struct {
@@ -108,6 +108,12 @@ SYSTEM_ERROR_CODE_E dev_status_get(DEV_STATUS_TYPE_E status_type, uint32_t *out_
     }
     if (s_status_mutex == NULL) {
         return ERR_INVALID_POINTER;
+    }
+    /* Tickless idle calls this getter after the scheduler is suspended.
+     * Do not attempt a blocking mutex take from that context. */
+    if (xTaskGetSchedulerState() == taskSCHEDULER_SUSPENDED) {
+        *out_status = s_dev_status[status_type].value;
+        return ERR_NONE;
     }
     if (xSemaphoreTake(s_status_mutex, portMAX_DELAY) != pdTRUE) {
         DEV_STATUS_LOG_ERROR("Failed to take mutex!");

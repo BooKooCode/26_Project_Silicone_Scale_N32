@@ -42,6 +42,9 @@ extern volatile uint32_t g_tickless_stop2_entry_count;
 
 void os_mgnt_init(void);
 void os_mgnt_set_stop_block(uint32_t blocker, bool blocked);
+void os_mgnt_notify_task(OS_TASK_IDNEX_E task_index);
+void os_mgnt_notify_task_from_isr(OS_TASK_IDNEX_E task_index);
+void os_mgnt_notify_task_from_sleep(OS_TASK_IDNEX_E task_index);
 
 
 SYSTEM_ERROR_CODE_E send_queue_belong_task(OS_TASK_IDNEX_E task_index, void *req);

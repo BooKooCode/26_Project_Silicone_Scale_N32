@@ -2,13 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "N32L406RB: J-Link Debug",
+            "name": "N32G435CBL7: J-Link Debug",
             "type": "cortex-debug",
             "request": "launch",
             "servertype": "jlink",
 
             "cwd": "${workspaceFolder}",
-            "executable": "${workspaceFolder}\\build\\Debug\\N32L406_Template.elf",
+            "executable": "${workspaceFolder}\\build\\Debug\\N32G435_Template.elf",
 
             "serverpath": "${config:n32.jlinkPath}\\JLinkGDBServerCL.exe",
             "gdbPath": "${config:n32.gccBin}\\arm-none-eabi-gdb.exe",
@@ -16,13 +16,18 @@
 
             "device": "${config:n32.device}",
             "interface": "swd",
+            "jlinkscript": "${workspaceFolder}\\.vscode\\n32g435-connect-under-reset.JLinkScript",
+            "resetType": "halt",
             "serverArgs": [
                 "-speed",
-                "${config:n32.swdSpeed}"
+                "${config:n32.swdSpeed}",
+                "-autoconnect",
+                "1",
+                "-nogui"
             ],
 
             "preLaunchTask": "N32: Build Debug",
-            "runToEntryPoint": "main",
+            "runToEntryPoint": "Reset_Handler",
             "showDevDebugOutput": "raw"
         }
     ]

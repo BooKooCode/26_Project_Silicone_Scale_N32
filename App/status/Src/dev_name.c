@@ -1,6 +1,6 @@
 #include "main.h"
 #include "dev_name.h"
-#include "n32l40x_dbg.h"
+#include "n32g43x_dbg.h"
 #include "FreeRTOS.h"
 #include "task.h"
 

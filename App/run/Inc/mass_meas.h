@@ -50,10 +50,12 @@
 #define MASS_MEAS_ACTIONSTOP_COUNT              (MASS_MEAS_ACTIONSTOP_MS/MASS_MEAS_UPDATE_PER_MS)
 
 void mass_sleep_probe_start(void);
+void mass_sleep_probe_start_paused(void);
 void mass_sleep_probe_stop(void);
 void mass_sleep_probe_pause(bool paused);
 void mass_sleep_probe_reset_zero_baseline(void);
 bool mass_sleep_probe_active(void);
+bool mass_sleep_probe_powered_down(void);
 bool mass_sleep_probe_normal_ready(void);
 void mass_explicit_wake_startup(void);
 

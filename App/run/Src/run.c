@@ -12,6 +12,7 @@
 #include "fsm.h"
 #include "mass_meas.h"
 #include "sleep_probe.h"
+#include "dev_buzzer.h"
 #include "gpio.h"
 
 
@@ -116,6 +117,10 @@ static bool fsm_var_get_bool(VARS_CACHE_INDEX_E idx) {
 
 static void set_run_state(uint32_t state) {
     dev_status_set(SYSTEM_STATE, state);
+    if(state != SLEEPING) {
+        os_mgnt_notify_task(OS_TASK_REGULAR);
+        os_mgnt_notify_task(OS_TASK_BAT);
+    }
 }
 
 
@@ -240,29 +245,39 @@ static uint32_t sleeping_state_action(void) {
     run_clock_release();
     stop_bat_sample();
 
-    while(false == _is_incharging) {
-        uint8_t _req_cob;
-        if(xQueueReceive(s_fsm_os->task_queue, &_req_cob,
-                         pdMS_TO_TICKS(TASK_FSM_INTERVAL_MS)) != pdPASS) {
-            if(get_run_state() != SLEEPING) {
-                return get_run_state();
+#if SLEEP_PROBE_CUP_WAKE_ENABLED
+    bool _mass_powered_down = true;
+    if(false == _is_incharging) {
+        const TickType_t _powerdown_start = xTaskGetTickCount();
+        while(!mass_sleep_probe_powered_down()) {
+            if((xTaskGetTickCount() - _powerdown_start) >= pdMS_TO_TICKS(100U)) {
+                _mass_powered_down = false;
+                FSM_LOG_INFO("Mass power-down before config store timed out");
+                break;
             }
-            continue;
+            vTaskDelay(pdMS_TO_TICKS(1U));
         }
-        if(_req_cob == SLEEPING) {
-            SYSTEM_ERROR_CODE_E _store_res = ERR_NONE;
-            for(uint32_t _attempt = 0; _attempt < 2U; _attempt++) {
-                _store_res = need_write_config();
-                if(ERR_NONE == _store_res) {
-                    _store_res = wait_config_store();
-                }
-                if(ERR_NONE == _store_res) {
-                    break;
-                }
-                FSM_LOG_INFO("Config store before sleep failed: %d", _store_res);
+    }
+#endif
+
+    if(false == _is_incharging) {
+#if SLEEP_PROBE_CUP_WAKE_ENABLED
+        if(_mass_powered_down) {
+#endif
+        SYSTEM_ERROR_CODE_E _store_res = ERR_NONE;
+        for(uint32_t _attempt = 0; _attempt < 2U; _attempt++) {
+            _store_res = need_write_config();
+            if(ERR_NONE == _store_res) {
+                _store_res = wait_config_store();
             }
-            break;
+            if(ERR_NONE == _store_res) {
+                break;
+            }
+            FSM_LOG_INFO("Config store before sleep failed: %d", _store_res);
         }
+#if SLEEP_PROBE_CUP_WAKE_ENABLED
+        }
+#endif
     }
 
     dev_status_get(INCHARGING_STATE, &_is_incharging);
@@ -270,7 +285,6 @@ static uint32_t sleeping_state_action(void) {
         _is_incharging = true;
     }
 #if SLEEP_PROBE_CUP_WAKE_ENABLED
-    mass_sleep_probe_start();
     mass_sleep_probe_pause(_is_incharging);
 #else
     if(!_is_incharging) {
@@ -764,6 +778,12 @@ void FSMreq_task(void * argument) {
         switch(FSMreq_cob) {
             case SYS_SLEEPING_REQ: {
                 dev_status_set(BUTTON_LOCK_STATE, true);
+#if SLEEP_PROBE_CUP_WAKE_ENABLED
+                /* Arm a paused probe before publishing SLEEPING. The mass task
+                 * will power CS1237 down before it can run another fatal normal
+                 * acquisition cycle; sleeping_state_action waits for completion. */
+                mass_sleep_probe_start_paused();
+#endif
                 set_run_state(SLEEPING);
                 FSM_LOG_INFO("Sleeping request received! Going to SLEEPING");
             } break;
@@ -776,6 +796,7 @@ void FSMreq_task(void * argument) {
                 s_cup_peeling_started = false;
                 s_probe_error_visible = false;
                 s_explicit_wake_startup = true;
+                os_mgnt_notify_task(OS_TASK_HCI);
                 set_run_state(WAKEUP);
                 vTaskResume(s_fsm_os->handler);
                 /* Set latest startup timestatmp */
@@ -790,6 +811,11 @@ void FSMreq_task(void * argument) {
                     s_cup_wakeup = true;
                     s_cup_peeling_started = false;
                     s_explicit_wake_startup = false;
+                    /* STOP2 loses the buzzer timer/PWM state. Rebuild it before
+                     * playing the same startup melody used by left-key wake. */
+                    dev_buzzer_resume();
+                    dev_buzzer_action((buzzer_songidx_s)HCI_BUZZER_STARTUP_REPONSE);
+                    os_mgnt_notify_task(OS_TASK_HCI);
                     set_run_state(WAKEUP);
                     vTaskResume(s_fsm_os->handler);
                     dev_status_set(STARTUP_TIMESTAMP, xTaskGetTickCount());
@@ -811,6 +837,7 @@ void FSMreq_task(void * argument) {
                     s_probe_error_visible = false;
                     s_cup_wakeup = false;
                     s_explicit_wake_startup = true;
+                    os_mgnt_notify_task(OS_TASK_HCI);
                     set_run_state(WAKEUP);
                     vTaskResume(s_fsm_os->handler);
                     dev_status_set(STARTUP_TIMESTAMP, xTaskGetTickCount());
@@ -887,12 +914,14 @@ void FSMreq_task(void * argument) {
             case SYS_INCHARGING_REQ: {
 //                vTaskResume(s_bat_os->handler);
                 dev_status_set(INCHARGING_STATE, true);
+                os_mgnt_notify_task(OS_TASK_BAT);
                 s_cup_wakeup = false;
                 s_probe_error_visible = false;
                 mass_sleep_probe_pause(true);
                 if(digits_disp_stateget() != DISP_INCHARGING) {
                     dev_status_set(BUTTON_LOCK_STATE, true);
                     if((_sys_state == SLEEPING) && (digits_disp_stateget() == DISP_HALT)) {
+                        os_mgnt_notify_task(OS_TASK_HCI);
                         send_hci_buzzer_melody(HCI_BUZZER_INCHARGE_RESPONSE);
                         vTaskResume(s_disp_os->handler);
                     }

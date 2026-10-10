@@ -2,8 +2,10 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "bat_meas.h"
+#include "os_mgnt.h"
 
 static volatile bool s_sleep_left_wakeup_enabled = false;
+static volatile bool s_sleep_left_wakeup_configured = false;
 static volatile bool s_sleep_left_wakeup_pending = false;
 
 void NS_GPIO_Init(void)
@@ -29,9 +31,18 @@ void NS_GPIO_Init(void)
     gpio.GPIO_Slew_Rate = GPIO_Slew_Rate_High;
     GPIO_InitPeripheral(GPIOB, &gpio);
 
-    gpio.Pin = btn_left_Pin | btn_right_Pin | SEN_MISO_Pin;
+    gpio.Pin = btn_left_Pin;
     gpio.GPIO_Mode = GPIO_Mode_Input;
+    gpio.GPIO_Pull = GPIO_Pull_Up;
     gpio.GPIO_Slew_Rate = GPIO_Slew_Rate_Low;
+    GPIO_InitPeripheral(GPIOA, &gpio);
+
+    gpio.Pin = btn_right_Pin;
+    gpio.GPIO_Pull = GPIO_Pull_Down;
+    GPIO_InitPeripheral(GPIOA, &gpio);
+
+    gpio.Pin = SEN_MISO_Pin;
+    gpio.GPIO_Pull = GPIO_No_Pull;
     GPIO_InitPeripheral(GPIOA, &gpio);
 
     gpio.Pin = BAT_MEAS_Pin;
@@ -61,14 +72,16 @@ void gpio_sleep_left_wakeup_enable(void)
     GPIO_ConfigEXTILine(GPIOA_PORT_SOURCE, GPIO_PIN_SOURCE2);
     gpio.Pin = btn_left_Pin;
     gpio.GPIO_Mode = GPIO_Mode_IT_Falling;
-    gpio.GPIO_Pull = GPIO_No_Pull;
+    gpio.GPIO_Pull = GPIO_Pull_Up;
     gpio.GPIO_Current = GPIO_DC_2mA;
     gpio.GPIO_Slew_Rate = GPIO_Slew_Rate_Low;
     GPIO_InitPeripheral(btn_left_GPIO_Port, &gpio);
     EXTI_ClrITPendBit(EXTI_LINE2);
     NVIC_ClearPendingIRQ(CHARGING_ENABLE_EXTI_IRQn);
     s_sleep_left_wakeup_pending = false;
-    s_sleep_left_wakeup_enabled = true;
+    s_sleep_left_wakeup_configured = true;
+    s_sleep_left_wakeup_enabled =
+        (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) != Bit_RESET);
     NVIC_SetPriority(CHARGING_ENABLE_EXTI_IRQn, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY);
     NVIC_EnableIRQ(CHARGING_ENABLE_EXTI_IRQn);
 }
@@ -78,6 +91,7 @@ void gpio_sleep_left_wakeup_disable(void)
     GPIO_InitType gpio = {0};
 
     s_sleep_left_wakeup_enabled = false;
+    s_sleep_left_wakeup_configured = false;
     s_sleep_left_wakeup_pending = false;
     NVIC_DisableIRQ(CHARGING_ENABLE_EXTI_IRQn);
     GPIO_ConfigEXTILine(GPIOB_PORT_SOURCE, GPIO_PIN_SOURCE2);
@@ -93,6 +107,24 @@ void gpio_sleep_left_wakeup_disable(void)
     NVIC_EnableIRQ(CHARGING_ENABLE_EXTI_IRQn);
 }
 
+void gpio_sleep_left_wakeup_arm_if_released(void)
+{
+    if(!s_sleep_left_wakeup_configured || s_sleep_left_wakeup_enabled ||
+       (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) == Bit_RESET)) {
+        return;
+    }
+
+    EXTI_ClrITPendBit(EXTI_LINE2);
+    NVIC_ClearPendingIRQ(CHARGING_ENABLE_EXTI_IRQn);
+    EXTI->IMASK |= EXTI_LINE2;
+    s_sleep_left_wakeup_enabled = true;
+}
+
+bool gpio_sleep_left_wakeup_is_enabled(void)
+{
+    return s_sleep_left_wakeup_enabled;
+}
+
 bool gpio_sleep_left_wakeup_pending(void)
 {
     bool pending;
@@ -103,14 +135,37 @@ bool gpio_sleep_left_wakeup_pending(void)
     return pending;
 }
 
+bool gpio_sleep_left_wakeup_capture_level(void)
+{
+    if(!s_sleep_left_wakeup_enabled ||
+       (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) != Bit_RESET)) {
+        return false;
+    }
+
+    s_sleep_left_wakeup_pending = true;
+    s_sleep_left_wakeup_enabled = false;
+    EXTI->IMASK &= ~(uint32_t)EXTI_LINE2;
+    EXTI_ClrITPendBit(EXTI_LINE2);
+    NVIC_ClearPendingIRQ(CHARGING_ENABLE_EXTI_IRQn);
+    return true;
+}
+
 void EXTI2_IRQHandler(void)
 {
-    if (EXTI_GetITStatus(EXTI_LINE2) != RESET) {
+    /* Check the raw pending bit.  GetITStatus() also checks IMASK, so using it
+     * after the wake path masks line 2 can leave PEND set and cause an endless
+     * IRQ8 re-entry loop. */
+    if ((EXTI->PEND & EXTI_LINE2) != 0U) {
         EXTI_ClrITPendBit(EXTI_LINE2);
-        if (s_sleep_left_wakeup_enabled) {
+        if (s_sleep_left_wakeup_configured) {
+            if (!s_sleep_left_wakeup_enabled) {
+                return;
+            }
             if (GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) == Bit_RESET) {
                 s_sleep_left_wakeup_pending = true;
+                s_sleep_left_wakeup_enabled = false;
                 EXTI->IMASK &= ~(uint32_t)EXTI_LINE2;
+                os_mgnt_notify_task_from_isr(OS_TASK_HCI);
             }
         } else {
             bat_gpio_exti_handler(CHARGING_ENABLE_Pin);

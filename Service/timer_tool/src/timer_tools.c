@@ -3,7 +3,7 @@
 #include "tim.h"
 
 #ifdef MEAS_RUNTIME_LPTIM
-#include "n32l40x_lptim.h"
+#include "n32g43x_lptim.h"
 #if !defined(MEAS_RUNTIME_LPTIM_CLOCK_HZ) || MEAS_RUNTIME_LPTIM_CLOCK_HZ < 31
 #error "Configure the LPTIM counter clock frequency (at least 31 Hz)"
 #endif

@@ -62,6 +62,8 @@ uint8_t dev_buzzer_getlevel(void);
 
 void dev_buzzer_enable(void);
 
+void dev_buzzer_resume(void);
+
 void dev_buzzer_disable(void);
 
 void dev_buzzer_on_tim_elapsed(void);

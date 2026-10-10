@@ -38,8 +38,53 @@ static bool s_probe_window_pending = false;
 static TickType_t s_probe_window_started_at = 0U;
 static TickType_t s_probe_powered_down_at = 0U;
 static uint32_t s_probe_window_sample_count = 0U;
+static uint32_t s_probe_previous_sample_count = 0U;
 static bool s_probe_wake_candidate = false;
 static bool s_probe_stabilizing = false;
+static float s_probe_stable_samples[SLEEP_PROBE_STABLE_SAMPLE_COUNT] = {0};
+static uint32_t s_probe_stable_sample_index = 0U;
+static uint32_t s_probe_stable_sample_count = 0U;
+static float s_probe_stable_average = 0.0f;
+static bool s_probe_window_stable = false;
+
+static void mass_probe_stable_reset(void)
+{
+	s_probe_stable_sample_index = 0U;
+	s_probe_stable_sample_count = 0U;
+	s_probe_stable_average = 0.0f;
+	s_probe_window_stable = false;
+}
+
+static bool mass_probe_stable_push(float value)
+{
+	float minimum;
+	float maximum;
+	float sum = 0.0f;
+
+	s_probe_stable_samples[s_probe_stable_sample_index] = value;
+	s_probe_stable_sample_index =
+		(s_probe_stable_sample_index + 1U) % SLEEP_PROBE_STABLE_SAMPLE_COUNT;
+	if(s_probe_stable_sample_count < SLEEP_PROBE_STABLE_SAMPLE_COUNT) {
+		s_probe_stable_sample_count++;
+	}
+
+	minimum = s_probe_stable_samples[0];
+	maximum = s_probe_stable_samples[0];
+	for(uint32_t index = 0U; index < s_probe_stable_sample_count; index++) {
+		float sample = s_probe_stable_samples[index];
+		sum += sample;
+		if(sample < minimum) {
+			minimum = sample;
+		}
+		if(sample > maximum) {
+			maximum = sample;
+		}
+	}
+
+	s_probe_stable_average = sum / (float)s_probe_stable_sample_count;
+	return (s_probe_stable_sample_count >= SLEEP_PROBE_STABLE_SAMPLE_COUNT) &&
+		((maximum - minimum) <= SLEEP_PROBE_STABLE_RANGE_G);
+}
 
 static void mass_sync_results(void)
 {
@@ -141,6 +186,7 @@ static void mass_probe_process(void)
 				s_probe_window_driver_error = false;
 				s_probe_window_pending = true;
 				s_probe_window_sample_count = scale_mass_mgnt_sample_count();
+				s_probe_previous_sample_count = s_probe_window_sample_count;
 				s_probe_window_started_at = now;
 				s_probe_phase = MASS_PROBE_PHASE_SAMPLING;
 			}
@@ -163,12 +209,20 @@ static void mass_probe_process(void)
 				s_probe_phase = MASS_PROBE_PHASE_POWERING_DOWN;
 			}
 			mass_sync_results();
-			if(!s_probe_wake_candidate &&
-			   (scale_mass_mgnt_sample_count() != s_probe_window_sample_count) &&
-			   fabsf(s_mass_pack.absolute_mass - sleep_probe_baseline_g(&s_sleep_probe)) >
-			   SLEEP_PROBE_WAKE_DELTA_G) {
-				/* One 640 Hz frame is enough to request the 40 Hz confirmation pass. */
-				s_probe_wake_candidate = true;
+			if(scale_mass_mgnt_sample_count() != s_probe_window_sample_count) {
+				/* Use the unfiltered net weight for prompt cup detection. The
+				 * normal wake path performs the user-visible filtering and tare. */
+				float instant_mass = scale_mass_mgnt_instant_mass_get();
+				s_probe_wake_candidate =
+					(fabsf(instant_mass - sleep_probe_baseline_g(&s_sleep_probe)) >
+					 SLEEP_PROBE_WAKE_DELTA_G) &&
+					(fabsf(instant_mass) <= SLEEP_PROBE_OVERLOAD_LIMIT_G);
+				s_probe_phase = MASS_PROBE_PHASE_POWERING_DOWN;
+			} else if((now - s_probe_window_started_at) >=
+			          pdMS_TO_TICKS(SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS)) {
+				/* No conversion arrived; shut the converter down rather than
+				 * holding the MCU awake for the full probe window. */
+				s_probe_window_driver_error = true;
 				s_probe_phase = MASS_PROBE_PHASE_POWERING_DOWN;
 			} else if((now - s_probe_window_started_at) >= pdMS_TO_TICKS(SLEEP_PROBE_WINDOW_MS)) {
 				s_probe_phase = MASS_PROBE_PHASE_POWERING_DOWN;
@@ -189,22 +243,17 @@ static void mass_probe_process(void)
 				if(s_probe_stabilizing) {
 					mass_probe_send_event(sleep_probe_finish_window(
 						&s_sleep_probe, sample_seen, s_probe_window_driver_error,
-						scale_mass_mgnt_stableget(), s_mass_pack.absolute_mass));
+						s_probe_window_stable, s_probe_stable_average));
 					s_probe_stabilizing = false;
 					s_probe_wake_candidate = false;
+				} else if(s_probe_wake_candidate && !s_probe_window_driver_error) {
+					dev_cs1237_set_probe_rate(false);
+					s_probe_stabilizing = true;
+					s_probe_window_pending = false;
+					s_probe_window_driver_error = false;
+					s_probe_phase = MASS_PROBE_PHASE_RATE_SWITCH_WAKING;
+					break;
 				} else {
-					s_probe_wake_candidate = sample_seen && !s_probe_window_driver_error &&
-						fabsf(s_mass_pack.absolute_mass - sleep_probe_baseline_g(&s_sleep_probe)) >
-						SLEEP_PROBE_WAKE_DELTA_G;
-					if(s_probe_wake_candidate) {
-						/* Confirm a fast 640 Hz trigger with a normal 40 Hz stable window. */
-						dev_cs1237_set_probe_rate(false);
-						s_probe_stabilizing = true;
-						s_probe_window_pending = false;
-						s_probe_window_driver_error = false;
-						s_probe_phase = MASS_PROBE_PHASE_RATE_SWITCH_WAKING;
-						break;
-					}
 					mass_probe_send_event(sleep_probe_finish_window(
 						&s_sleep_probe, sample_seen, s_probe_window_driver_error,
 						scale_mass_mgnt_stableget(), s_mass_pack.absolute_mass));
@@ -215,10 +264,20 @@ static void mass_probe_process(void)
 			s_probe_phase = MASS_PROBE_PHASE_POWERED_DOWN;
 			break;
 
+		case MASS_PROBE_PHASE_POWERED_DOWN:
+			if(!s_probe_paused &&
+			   ((now - s_probe_powered_down_at) >=
+				pdMS_TO_TICKS(SLEEP_PROBE_PERIOD_MS - SLEEP_PROBE_WINDOW_MS))) {
+				s_probe_phase = MASS_PROBE_PHASE_WAKING;
+			}
+			break;
+
 		case MASS_PROBE_PHASE_RATE_SWITCH_WAKING:
 			status = scale_mass_mgnt_probe_wakeup();
 			if(status == NS_SUCCESS) {
 				s_probe_window_sample_count = scale_mass_mgnt_sample_count();
+				s_probe_previous_sample_count = s_probe_window_sample_count;
+				mass_probe_stable_reset();
 				s_probe_window_started_at = now;
 				s_probe_phase = MASS_PROBE_PHASE_STABILIZING;
 			} else if(status != NS_ERROR_BUSY) {
@@ -234,17 +293,14 @@ static void mass_probe_process(void)
 				s_probe_window_driver_error = true;
 			}
 			mass_sync_results();
+			if(scale_mass_mgnt_sample_count() != s_probe_previous_sample_count) {
+				s_probe_previous_sample_count = scale_mass_mgnt_sample_count();
+				s_probe_window_stable =
+					mass_probe_stable_push(scale_mass_mgnt_instant_mass_get());
+			}
 			if((now - s_probe_window_started_at) >= pdMS_TO_TICKS(SLEEP_PROBE_STABILIZE_WINDOW_MS)) {
 				s_probe_window_pending = true;
 				s_probe_phase = MASS_PROBE_PHASE_POWERING_DOWN;
-			}
-			break;
-
-		case MASS_PROBE_PHASE_POWERED_DOWN:
-			if(!s_probe_paused &&
-			   ((now - s_probe_powered_down_at) >=
-				pdMS_TO_TICKS(SLEEP_PROBE_PERIOD_MS - SLEEP_PROBE_WINDOW_MS))) {
-				s_probe_phase = MASS_PROBE_PHASE_WAKING;
 			}
 			break;
 
@@ -294,6 +350,19 @@ void mass_sleep_probe_start(void)
 	}
 }
 
+void mass_sleep_probe_start_paused(void)
+{
+	taskENTER_CRITICAL();
+	s_probe_baseline_valid = true;
+	s_probe_baseline_g = 0.0f;
+	s_probe_paused = true;
+	s_probe_start_requested = true;
+	taskEXIT_CRITICAL();
+	if(s_mass_os != NULL) {
+		xTaskNotifyGive(s_mass_os->handler);
+	}
+}
+
 void mass_sleep_probe_stop(void)
 {
 	s_probe_stop_requested = true;
@@ -324,6 +393,11 @@ void mass_sleep_probe_reset_zero_baseline(void)
 bool mass_sleep_probe_active(void)
 {
 	return s_probe_phase != MASS_PROBE_PHASE_IDLE;
+}
+
+bool mass_sleep_probe_powered_down(void)
+{
+	return s_probe_phase == MASS_PROBE_PHASE_POWERED_DOWN;
 }
 
 bool mass_sleep_probe_normal_ready(void)
@@ -379,7 +453,8 @@ void mass_task(void * argument) {
 				delay_ticks = powered_down_ticks - elapsed_ticks;
 			}
 		}
-		else if(s_probe_phase == MASS_PROBE_PHASE_SAMPLING) {
+		else if((s_probe_phase == MASS_PROBE_PHASE_SAMPLING) ||
+				(s_probe_phase == MASS_PROBE_PHASE_STABILIZING)) {
 			delay_ticks = pdMS_TO_TICKS(SLEEP_PROBE_SAMPLE_POLL_MS);
 		}
 		(void)ulTaskNotifyTake(pdTRUE, delay_ticks);

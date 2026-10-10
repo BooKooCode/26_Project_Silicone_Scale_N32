@@ -189,7 +189,8 @@ static int hci_left_button_response(void *param) {
                 }
                 else {
                     FSM_cob = SYS_WAKEUP_REQ;
-                    send_hci_buzzer_melody(HCI_BUZZER_STARTUP_REPONSE);
+                    dev_buzzer_resume();
+                    dev_buzzer_action((buzzer_songidx_s)HCI_BUZZER_STARTUP_REPONSE);
                 }
                 (void)send_fsm_critical_request(FSM_cob);
             }
@@ -468,24 +469,47 @@ void hci_task(void *argument) {
     register_button_response_event(&s_btn_mgnt, LEFT_BUTTON_INDEX, hci_left_button_response);
     register_button_response_event(&s_btn_mgnt, RIGHT_BUTTON_INDEX, hci_right_button_response);
     s_hci_os->wake_tick = xTaskGetTickCount();
+    bool sleep_button_polling = false;
     
-    while(true) { 
-        vTaskDelayUntil(&s_hci_os->wake_tick, pdMS_TO_TICKS(HCI_UPDATE_PER_MS));
-        
+    while(true) {
+        uint32_t system_state = 0U;
+        dev_status_get(SYSTEM_STATE, &system_state);
+        if(system_state == SLEEPING) {
+            /* A long press is also the shutdown gesture.  Arm the falling-edge
+             * wake interrupt only after that press has been released. */
+            gpio_sleep_left_wakeup_arm_if_released();
+        }
+        if((system_state == SLEEPING) &&
+           gpio_sleep_left_wakeup_is_enabled() &&
+           !sleep_button_polling) {
+            /* The EXTI notification is retained if it arrives before this
+             * call, unlike suspend/resume which can lose that edge.  The EXTI
+             * gate also distinguishes a completed product sleep transition
+             * from the initial SLEEPING status used before the first startup. */
+            (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+            s_hci_os->wake_tick = xTaskGetTickCount();
+        } else {
+            if(system_state != SLEEPING) {
+                (void)ulTaskNotifyTake(pdTRUE, 0U);
+            }
+            vTaskDelayUntil(&s_hci_os->wake_tick, pdMS_TO_TICKS(HCI_UPDATE_PER_MS));
+        }
+
+        /* Consume the STOP2 wake edge before advancing the button FSM. The
+         * sleep transition locks buttons, so release that lock before the
+         * startup detector handles the already-low left key. */
+        if(gpio_sleep_left_wakeup_pending()) {
+            dev_status_get(SYSTEM_STATE, &system_state);
+            if(system_state == SLEEPING) {
+                sleep_button_polling = true;
+                dev_status_set(BUTTON_LOCK_STATE, false);
+                reset_button_startup_state(&s_btn_mgnt, LEFT_BUTTON_INDEX);
+            }
+        }
+
         /* Button fsm update */
         for(uint8_t i = 0; i < BUTTON_TOTAL_COUNT; i++) {
             button_state_update(&s_btn_mgnt, i, s_btn_gpio[i].trigger_level);
-        }
-
-        /* STOP2 wakes on the left-key falling edge. Re-arm the button
-         * startup detector so the normal startup-short-press path emits the
-         * exit-from-sleep request after debounce/hold validation. */
-        if(gpio_sleep_left_wakeup_pending()) {
-            uint32_t system_state = 0U;
-            dev_status_get(SYSTEM_STATE, &system_state);
-            if(system_state == SLEEPING) {
-                reset_button_startup_state(&s_btn_mgnt, LEFT_BUTTON_INDEX);
-            }
         }
         
         /* Remote command update : Unblock */
@@ -501,6 +525,17 @@ void hci_task(void *argument) {
             if(HCI_REMOTE_BUZZER_MELODY == _remote_cmd.cmd_type) {
                 dev_buzzer_action((buzzer_songidx_s)_remote_cmd.cmd);
             }
+        }
+        dev_status_get(SYSTEM_STATE, &system_state);
+        if(system_state != SLEEPING) {
+            sleep_button_polling = false;
+        } else if(sleep_button_polling &&
+                  gpio_sleep_left_wakeup_is_enabled() &&
+                  get_hci_btn_level(LEFT_BUTTON_INDEX)) {
+            /* A tap shorter than the startup threshold must not leave EXTI
+             * masked forever.  Once released and re-armed, return to the
+             * notification wait path. */
+            sleep_button_polling = false;
         }
     }
 }

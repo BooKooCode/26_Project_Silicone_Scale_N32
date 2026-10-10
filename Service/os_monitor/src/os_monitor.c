@@ -262,7 +262,11 @@ SYSTEM_ERROR_CODE_E update_queue_state(uint16_t _index) {
     else {
         threshold = OS_QUEUE_OVERFLOW_THRESHOLD_MIN_COUNT;
     }
-    osMutexAcquire(s_os_mgnt.mutex, osWaitForever);
+    /* This function is called from the RTOS timer service task. Never block
+     * that task waiting for the monitor mutex; retry on the next period. */
+    if (osMutexAcquire(s_os_mgnt.mutex, 0) != osOK) {
+        return ERR_WOULD_BLOCK;
+    }
     uint8_t prev_overflow = s_os_mgnt.queue_record[_index].overflowed;
     uint8_t cur_overflow = (msgs >= threshold) ? 1 : 0;
     

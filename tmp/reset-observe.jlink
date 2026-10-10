@@ -1,0 +1,12 @@
+connect
+h
+w4 0x20005674 0 0 0 0
+r
+Sleep 50
+g
+Sleep 100
+h
+regs
+mem32 0x2000002C 1
+mem32 0x20005674 20
+exit

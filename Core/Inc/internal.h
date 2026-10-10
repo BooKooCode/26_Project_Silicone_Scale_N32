@@ -15,7 +15,7 @@
 #include "app_error.h"
 #include "dev_status.h"
 #include "scale_mass_mgnt.h"
-#include "n32l40x_dbg.h"
+#include "n32g43x_dbg.h"
 
 typedef SYSTEM_STATE_E system_state_e;
 typedef QueueHandle_t xQueueHandle;

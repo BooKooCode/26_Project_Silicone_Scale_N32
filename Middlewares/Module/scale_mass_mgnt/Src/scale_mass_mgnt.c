@@ -100,6 +100,7 @@ static mass_mgnt_calipack_s cali_offset;
 
 /* Mass manager object */
 static mass_mgnt_calc_s mass_mgnt;
+static volatile float s_instant_mass_g = 0.0f;
 static scale_peeling_session_t peeling_session;
 
 /* Mass data buffer used in numerical differential */
@@ -499,6 +500,8 @@ static void getraw_and_calcSD(int32_t cs1237_res, uint32_t stable_sample_count) 
 	float scale_s = (float)cs1237_res / 1073741.824f / 2.0f / sensor_params->fs_mVperV;
 	mass_mgnt.mass_g_rawdata = scale_s * sensor_params->fs;
 	const float mass_raw_g = mass_mgnt.mass_g_rawdata;
+	s_instant_mass_g = (mass_raw_g - mass_mgnt.mass_g_cali_offset) *
+		mass_mgnt.mass_g_cali_k;
     
     /* bessel calculation */
     mass_mgnt.mass_g_rawdata = bessel2_update(&besselfilter, mass_mgnt.mass_g_rawdata);
@@ -986,6 +989,11 @@ bool scale_mass_mgnt_stop_blocked(void)
 	return dev_cs1237_transfer_active();
 }
 
+void scale_mass_mgnt_restore_after_stop2(void)
+{
+	dev_cs1237_restore_after_stop2();
+}
+
 bool scale_mass_mgnt_normal_ready(void)
 {
 	return dev_cs1237_is_ready();
@@ -994,6 +1002,11 @@ bool scale_mass_mgnt_normal_ready(void)
 uint32_t scale_mass_mgnt_sample_count(void)
 {
 	return dev_cs1237_sample_count();
+}
+
+float scale_mass_mgnt_instant_mass_get(void)
+{
+	return s_instant_mass_g;
 }
 
 ret_code_t scale_mass_mgnt_explicit_wake_startup(void)

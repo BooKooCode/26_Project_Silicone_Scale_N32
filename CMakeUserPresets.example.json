@@ -3,7 +3,7 @@
     "configurePresets": [
         {
             "name": "Debug",
-            "displayName": "N32L406 Debug",
+            "displayName": "N32G435 Debug",
             "inherits": "n32-debug",
             "cacheVariables": {
                 "CMAKE_MAKE_PROGRAM": "C:/path/to/ninja.exe",
@@ -12,7 +12,7 @@
         },
         {
             "name": "Release",
-            "displayName": "N32L406 Release",
+            "displayName": "N32G435 Release",
             "inherits": "n32-release",
             "cacheVariables": {
                 "CMAKE_MAKE_PROGRAM": "C:/path/to/ninja.exe",
