@@ -9,13 +9,16 @@ extern "C" {
 #include <stdint.h>
 
 #ifndef SLEEP_PROBE_CUP_WAKE_ENABLED
-#define SLEEP_PROBE_CUP_WAKE_ENABLED            2U
+#define SLEEP_PROBE_CUP_WAKE_ENABLED            1U
 #endif
 #ifndef SLEEP_PROBE_PERIOD_MS
 #define SLEEP_PROBE_PERIOD_MS                   2000UL
 #endif
 #ifndef SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS
 #define SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS      20UL
+#endif
+#ifndef SLEEP_PROBE_TRIGGER_SAMPLE_COUNT
+#define SLEEP_PROBE_TRIGGER_SAMPLE_COUNT         3U
 #endif
 #ifndef SLEEP_PROBE_STABILIZE_WINDOW_MS
 #define SLEEP_PROBE_STABILIZE_WINDOW_MS         250UL
@@ -25,6 +28,9 @@ extern "C" {
 #endif
 #ifndef SLEEP_PROBE_SAMPLE_POLL_MS
 #define SLEEP_PROBE_SAMPLE_POLL_MS              5UL
+#endif
+#ifndef SLEEP_PROBE_STATE_POLL_MS
+#define SLEEP_PROBE_STATE_POLL_MS               1UL
 #endif
 #ifndef SLEEP_PROBE_WAKE_DELTA_G
 #define SLEEP_PROBE_WAKE_DELTA_G                50.0f
@@ -49,6 +55,14 @@ extern "C" {
 #endif
 #if SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS == 0UL
 #error "Sleep probe first-sample timeout must be greater than zero"
+#endif
+#if SLEEP_PROBE_STATE_POLL_MS == 0UL
+#error "Sleep probe state poll interval must be greater than zero"
+#endif
+#if (SLEEP_PROBE_TRIGGER_SAMPLE_COUNT == 0U) || \
+    ((SLEEP_PROBE_SAMPLE_POLL_MS * SLEEP_PROBE_TRIGGER_SAMPLE_COUNT) > \
+     SLEEP_PROBE_FIRST_SAMPLE_TIMEOUT_MS)
+#error "Sleep probe timeout cannot collect enough trigger samples"
 #endif
 #if (SLEEP_PROBE_SAMPLE_POLL_MS == 0UL) || \
     ((SLEEP_PROBE_SAMPLE_POLL_MS * SLEEP_PROBE_STABLE_SAMPLE_COUNT) > \

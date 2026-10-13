@@ -22,15 +22,6 @@
 #define FSM_LOG_INFO(...)     LOG_INFO("fsm", __VA_ARGS__)
 
 
-
-static void run_clock_request(void) {
-}
-
-
-static void run_clock_release(void) {
-}
-
-
 //typedef struct {
     /* Action counting variables for auto mode */
 //    bool auto_cup_placed;
@@ -245,7 +236,6 @@ static uint32_t sleeping_state_action(void) {
         }
         digits_disp_req(DISP_HALT_REQ);
     }
-    run_clock_release();
     stop_bat_sample();
 
 #if SLEEP_PROBE_CUP_WAKE_ENABLED
@@ -296,9 +286,28 @@ static uint32_t sleeping_state_action(void) {
 #endif
 
     if(!_is_incharging) {
+        const TickType_t display_halt_started_at = xTaskGetTickCount();
+        bool display_halted = false;
+
+        /* DISP_HALT_REQ intentionally shows the remaining battery level
+         * before shutting TM1640 down. Keep its GPIO active until the display
+         * task has completed that sequence. */
+        while(digits_disp_stateget() != DISP_HALT) {
+            if((xTaskGetTickCount() - display_halt_started_at) >=
+               pdMS_TO_TICKS(1500U)) {
+                FSM_LOG_INFO("Display halt before GPIO sleep timed out");
+                break;
+            }
+            vTaskDelay(pdMS_TO_TICKS(5U));
+        }
+        display_halted = digits_disp_stateget() == DISP_HALT;
+
         /* Re-map EXTI2 to the active-low left key while the product is in
          * STOP2 so a left-key press can wake the MCU. */
         gpio_sleep_left_wakeup_enable();
+        if(display_halted) {
+            gpio_sleep_unused_pins_enter();
+        }
     }
     
     vTaskSuspend(NULL);
@@ -309,10 +318,10 @@ static uint32_t sleeping_state_action(void) {
 
 
 static uint32_t wakeup_state_action(void) {
+    gpio_sleep_unused_pins_restore();
     gpio_sleep_left_wakeup_disable();
     /* Hardware Power on */
     dev_hw_poweron();
-    run_clock_request();
     if(s_explicit_wake_startup) {
         mass_explicit_wake_startup();
         vTaskResume(s_mass_os->handler);

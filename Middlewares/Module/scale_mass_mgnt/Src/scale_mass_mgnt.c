@@ -986,7 +986,10 @@ ret_code_t scale_mass_mgnt_probe_restore_normal(void)
 
 bool scale_mass_mgnt_stop_blocked(void)
 {
-	return dev_cs1237_transfer_active();
+	/* STOP2 resets the SPI/DMA working state. Keep the MCU in shallow sleep
+	 * for the complete CS1237 wake/config/sample/power-down transaction so a
+	 * probe is not split across repeated clock-tree restores. */
+	return !dev_cs1237_is_sleeping();
 }
 
 void scale_mass_mgnt_restore_after_stop2(void)

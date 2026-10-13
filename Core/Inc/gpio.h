@@ -5,7 +5,7 @@
 #include "main.h"
 
 #ifndef SLEEP_LEFT_KEY_WAKE_ENABLED
-#define SLEEP_LEFT_KEY_WAKE_ENABLED 0U
+#define SLEEP_LEFT_KEY_WAKE_ENABLED 1U
 #endif
 
 #if (SLEEP_LEFT_KEY_WAKE_ENABLED != 0U) && (SLEEP_LEFT_KEY_WAKE_ENABLED != 1U)
@@ -19,6 +19,8 @@ extern "C" {
 void NS_GPIO_Init(void);
 void gpio_sleep_left_wakeup_enable(void);
 void gpio_sleep_left_wakeup_disable(void);
+void gpio_sleep_unused_pins_enter(void);
+void gpio_sleep_unused_pins_restore(void);
 void gpio_sleep_left_wakeup_arm_if_released(void);
 bool gpio_sleep_left_wakeup_is_enabled(void);
 bool gpio_sleep_left_wakeup_wait_ready(void);
