@@ -16,6 +16,7 @@
 #define PARAM_KEY_MODE_MASK             "mode_mask"
 #define PARAM_KEY_ANI_CYCLE             "animation_cycle"
 #define PARAM_KEY_TOUCH_GUARD           "touch_guard"
+#define PARAM_KEY_CUP_WAKEUP_ENABLE     "cup_wakeup_enable"
 
 #define STRING_KEY_DEV_NAME             "dev_name"
 
@@ -32,6 +33,8 @@
 #define TASK_DEBUG_VOFA_INTERVAL_MS     25
 
 #define TIM_BAT_SAMPLE_PERIOD_MS        10
+
+#define CUP_WAKEUP_MIN_POWER_PERCENT    30U
 
 #define AUTO_MODE_PEELING_MS            1000
 #define AUTO_MODE_PEELING_COUNT         (AUTO_MODE_PEELING_MS / TASK_FSM_INTERVAL_MS)

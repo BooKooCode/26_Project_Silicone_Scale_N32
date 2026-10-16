@@ -93,7 +93,6 @@ static int hci_left_button_response(void *param) {
         case BUTTON_SINGLE_CLICK: {
             if(_sys_state == WORKING_CALIBRATE) {
                 FSM_cob = SYS_CALI_EXITING_REQ;
-                send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
             }
             else if(_sys_state == AUTO_MODE_GOING) {
@@ -106,7 +105,6 @@ static int hci_left_button_response(void *param) {
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
             }
             if(_sys_state == TIMING_MODE) {
-                send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
                 switch(timing_mgnt_getstate()) {
                     case TIMING_RESETED:{
                         timing_cob = TIMING_START_REQ;
@@ -124,6 +122,10 @@ static int hci_left_button_response(void *param) {
                 };
             }
             HCI_LOG_INFO("Left button clicked.");
+            break;
+        }
+        case BUTTON_CLICK_FEEDBACK: {
+            send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
             break;
         }
         case BUTTON_SHORT_PRESS: {
@@ -202,7 +204,7 @@ static int hci_left_button_response(void *param) {
             break;
         }
         case (BUTTON_MULTI_CLICK + 4): {
-            if(_sys_state == WEIGHTING_MODE || _sys_state == TIMING_MODE || _sys_state == AUTO_MODE_GOING || _sys_state == AUTO_MODE_END) {
+            if(_sys_state == WEIGHTING_MODE || _sys_state == TIMING_MODE || _sys_state == AUTO_MODE_READY || _sys_state == AUTO_MODE_GOING || _sys_state == AUTO_MODE_END) {
                 FSM_cob = SYS_SILENCE_REQ;
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
                 HCI_LOG_INFO("Silent switch.");
@@ -210,10 +212,18 @@ static int hci_left_button_response(void *param) {
             break;    
         }
         case (BUTTON_MULTI_CLICK + 6): {
-            if(_sys_state == WEIGHTING_MODE || _sys_state == TIMING_MODE || _sys_state == AUTO_MODE_GOING || _sys_state == AUTO_MODE_END) {
+            if(_sys_state == WEIGHTING_MODE || _sys_state == TIMING_MODE || _sys_state == AUTO_MODE_READY || _sys_state == AUTO_MODE_GOING || _sys_state == AUTO_MODE_END) {
                 FSM_cob = SYS_UNIT_REQ;
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
                 HCI_LOG_INFO("Unit switch.");
+            }
+            break;
+        }
+        case (BUTTON_MULTI_CLICK + 8): {
+            if(_sys_state == WEIGHTING_MODE || _sys_state == TIMING_MODE || _sys_state == AUTO_MODE_READY || _sys_state == AUTO_MODE_GOING || _sys_state == AUTO_MODE_END) {
+                FSM_cob = SYS_CUP_WAKEUP_TOGGLE_REQ;
+                send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
+                HCI_LOG_INFO("Cup wakeup switch.");
             }
             break;
         }
@@ -236,6 +246,15 @@ static int hci_right_button_response(void *param) {
     
     uint32_t _sys_state = 0;
     dev_status_get(SYSTEM_STATE, &_sys_state);
+
+    if(event == BUTTON_CLICK_FEEDBACK) {
+        send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
+        return ERR_NONE;
+    }
+
+    if(_sys_state == SLEEPING) {
+        return ERR_NONE;
+    }
     
     bool _touch_guard = false;
     get_kv_param_value(PARAM_KEY_TOUCH_GUARD, &_touch_guard);
@@ -245,7 +264,6 @@ static int hci_right_button_response(void *param) {
             /* Peeling in weighing and espresso manual modes */
             if((_sys_state == WEIGHTING_MODE) || (_sys_state == TIMING_MODE)) {
                 FSM_cob = SYS_PEELING_REQ;
-                send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
             }
             /* Next AUTO_MODE_READY */
@@ -257,24 +275,15 @@ static int hci_right_button_response(void *param) {
             break;
         }
         case BUTTON_DOUBLE_CLICK: {
-            // /* Toggle espresso submode (manual <-> auto) in espresso modes */
-            // if((_sys_state == TIMING_MODE) || (_sys_state == AUTO_MODE_READY)) {
-            //     send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
-            //     FSM_cob = SYS_TOGGLE_ESPRESSO_SUBMODE_REQ;
-            //     send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
-            // }
-            // /* Force reset at AUTO_MODE_GOING */
-            // else if(_sys_state == AUTO_MODE_GOING) {
-            //     FSM_cob = SYS_TOAUTOREADY_REQ;
-            //     send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
-            // }
-            // /* Next AUTO_MODE_READY */
-            // else if(_sys_state == AUTO_MODE_END) {
-            //     FSM_cob = SYS_TOAUTOREADY_REQ;
-            //     send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
-            // }
-            // send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
+            if(_sys_state == AUTO_MODE_GOING) {
+                FSM_cob = SYS_TOAUTOREADY_REQ;
+                send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
+            }
             HCI_LOG_INFO("Right button double clicked.");
+            break;
+        }
+        case BUTTON_CLICK_FEEDBACK: {
+            send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
             break;
         }
         case BUTTON_SHORT_PRESS: {
@@ -341,7 +350,6 @@ static int hci_right_button_response(void *param) {
         case (BUTTON_MULTI_CLICK + 3): {
             /* Toggle espresso submode (manual <-> auto) in espresso modes */
             if((_sys_state == TIMING_MODE) || (_sys_state == AUTO_MODE_READY)) {
-                send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
                 FSM_cob = SYS_TOGGLE_ESPRESSO_SUBMODE_REQ;
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
             }
@@ -355,13 +363,11 @@ static int hci_right_button_response(void *param) {
                 FSM_cob = SYS_TOAUTOREADY_REQ;
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
             }
-            send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
             break;
         }
         case (BUTTON_MULTI_CLICK + 8): {
-            if(_sys_state == WEIGHTING_MODE) {
+            if((_sys_state == WEIGHTING_MODE) || (_sys_state == TIMING_MODE) || (_sys_state == AUTO_MODE_READY)) {
                 FSM_cob = SYS_CALI_REQ;
-                send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
                 send_queue_belong_task(OS_TASK_FSMREQ, &FSM_cob);
             }
             HCI_LOG_INFO("Calibration trigger.");

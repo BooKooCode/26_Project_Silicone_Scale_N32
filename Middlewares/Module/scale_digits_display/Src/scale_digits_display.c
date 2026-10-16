@@ -31,6 +31,7 @@
 
 #define INDICATOR_H_GRID_IDX		11
 #define INDICATOR_J_GRID_IDX		12
+#define INDICATOR_CUP_WAKEUP_GRID_IDX	13
 
 #define INDICATOR_H1_LEFT_KEY	0x01
 #define INDICATOR_H2_BUSY_1		0x02
@@ -46,13 +47,15 @@
 #define INDICATOR_J3_G			0x04
 #define INDICATOR_J6_RIGHT_KEY	0x20
 
+#define INDICATOR_CUP_WAKEUP_SEN4	0x08
+
 #define DISPLAY_MASS_DIGIT_G     	4
 #define DISPLAY_MASS_DIGIT_OZ		3
 #define DISPLAY_MASS_UP_G			3000.1f
 #define DISPLAY_MASS_DOWN_G			-999.9f
 #define DISPLAY_MASS_UP_OZ			105.83f
 #define DISPLAY_MASS_DOWN_OZ		-35.27f
-#define DISPLAY_FLOWRATE_UP			99.9f
+#define DISPLAY_FLOWRATE_UP			20.0f
 #define DISPLAY_TIMING_UP_MS		599000
 
 /* Private variables ---------------------------------------------------------*/
@@ -113,6 +116,7 @@ static bool disp_peeling_indication = false;
 //
 static bool disp_halt_batlevel = false;
 static uint16_t recoverable_error_code = 0U;
+static bool cup_wakeup_enabled = false;
 
 
 /* Digits encoding */
@@ -617,9 +621,9 @@ void digits_disp_update_autovars(float _mass, float _flowrate, uint32_t _timing)
 #define ANI_INCHARGING_MS           1500
 #define ANI_INCHARGING_LEDFLOW_MS	200
 #define ANI_EXITCHARGING_DISP_MS	2000
-#define ANI_BUSY_LEDFLOW_MS         100
+#define ANI_BUSY_LEDFLOW_MS         75
 #define ANI_AUTOWELCOME_DISP_MS		1000
-#define ANI_AUTOEND_FLASHING_MS		800
+#define ANI_AUTOEND_FLASHING_MS		600
 
 void digits_disp_processing(void) {
 	static uint32_t disp_busy_freq_cnt = 0;
@@ -737,6 +741,7 @@ void digits_disp_processing(void) {
 
 				case 1:
 					disp_timing(s_timing, s_flowrate, s_mass);
+					memset(buf + DIGIT_TIMING_START_IDX, 0x40, 3 * sizeof(uint8_t));
 				break;
 
 				default:
@@ -907,6 +912,14 @@ void digits_disp_processing(void) {
             force_disp_rightupLEDs(0x00);
 		}
 	}
+	if(display_state != DISP_TESTLED) {
+		if(cup_wakeup_enabled) {
+			buf[INDICATOR_CUP_WAKEUP_GRID_IDX] |= INDICATOR_CUP_WAKEUP_SEN4;
+		}
+		else {
+			buf[INDICATOR_CUP_WAKEUP_GRID_IDX] &= ~INDICATOR_CUP_WAKEUP_SEN4;
+		}
+	}
 	/* Send the digits buffer to the chip */
 	if(dev_tm1640b_senddata(0, buf, DIGIT_TOTAL_NUMS) != NS_SUCCESS){
 		APP_ERROR_HANDLER(BOOKOO_ERROR_DISP_UPDATE_FAIL);
@@ -1023,6 +1036,8 @@ void digits_disp_req(digits_disp_req_e const _req) {
 				disp_peeling_indication = false;
 			break;
 			case DISP_EXITPEELING_REQ: disp_peeling_indication = false; break;
+			case DISP_CUP_WAKEUP_ENABLE_REQ: cup_wakeup_enabled = true; break;
+			case DISP_CUP_WAKEUP_DISABLE_REQ: cup_wakeup_enabled = false; break;
 			default: break;
 		};
 	}

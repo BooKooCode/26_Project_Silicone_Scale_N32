@@ -25,6 +25,19 @@ static volatile bool s_bat_result_pending = false;
 static volatile uint8_t s_bat_result_percent = 0U;
 
 
+static void update_cup_wakeup_availability(uint8_t battery_percent) {
+    bool cup_wakeup_preference = false;
+    bool cup_wakeup_enabled = false;
+
+    if(get_kv_param_value(PARAM_KEY_CUP_WAKEUP_ENABLE, &cup_wakeup_preference) == ERR_NONE) {
+        cup_wakeup_enabled = cup_wakeup_preference &&
+                             (battery_percent >= CUP_WAKEUP_MIN_POWER_PERCENT);
+    }
+    digits_disp_req(cup_wakeup_enabled ? DISP_CUP_WAKEUP_ENABLE_REQ :
+                                         DISP_CUP_WAKEUP_DISABLE_REQ);
+}
+
+
 saadc_mgnt_pin_t saadc_cfgs[1] = {
     {
 		.AINx = BAT_AIN,
@@ -107,6 +120,7 @@ static void bat_process_pending_result(void)
     s_bat_result_pending = false;
     value.us8[0] = s_bat_result_percent;
     dev_var_set(POWER_PERCENT_INDEX, &value);
+    update_cup_wakeup_availability(value.us8[0]);
     dev_status_get(INCHARGING_STATE, &is_incharging);
     if(is_incharging) {
         return;
@@ -272,7 +286,7 @@ void bat_task(void * argument) {
 		full_charged_poll();
         
         /* Keep the battery ADC disabled while business sleep is active. */
-        if(_sys_state != SLEEPING) {
+        if((_sys_state != SLEEPING) || _is_charge) {
             start_bat_sample();
         }
 

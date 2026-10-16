@@ -15,10 +15,6 @@
 #include "dev_buzzer.h"
 #include "gpio.h"
 
-#if !SLEEP_LEFT_KEY_WAKE_ENABLED && (SLEEP_PROBE_CUP_WAKE_ENABLED != 1U)
-//#error "Sleep without cup wake requires left-key wake"
-#endif
-
 #define FSM_LOG_INFO(...)     LOG_INFO("fsm", __VA_ARGS__)
 
 
@@ -134,6 +130,29 @@ static bool is_charging_active(void)
 }
 
 
+static bool cup_wakeup_is_enabled(void)
+{
+    bool cup_wakeup_preference = false;
+    FORMAT_4BYTES_U power = {0};
+
+    if(get_kv_param_value(PARAM_KEY_CUP_WAKEUP_ENABLE, &cup_wakeup_preference) != ERR_NONE) {
+        return false;
+    }
+    if(dev_var_get(POWER_PERCENT_INDEX, &power) != ERR_NONE) {
+        return false;
+    }
+    return cup_wakeup_preference &&
+           (power.us8[0] >= CUP_WAKEUP_MIN_POWER_PERCENT);
+}
+
+
+static void update_cup_wakeup_indicator(void)
+{
+    digits_disp_req(cup_wakeup_is_enabled() ? DISP_CUP_WAKEUP_ENABLE_REQ :
+                                              DISP_CUP_WAKEUP_DISABLE_REQ);
+}
+
+
 static bool need_standby(void) {
     /* Standby for user_config.waiting_max_minute (15min by default) */
 //    if(scale_mass_mgnt_stableget()) {
@@ -229,16 +248,25 @@ static uint32_t sleeping_state_action(void) {
     timing_mgnt_req(TIMING_FORCE_RESET_REQ);
     uint32_t _is_incharging = false;
     dev_status_get(INCHARGING_STATE, &_is_incharging);
+    bool _cup_wakeup_enabled = cup_wakeup_is_enabled();
 
     if(false == _is_incharging) {
         uint8_t stale_request;
         while(xQueueReceive(s_fsm_os->task_queue, &stale_request, 0) == pdPASS) {
         }
-        digits_disp_req(DISP_HALT_REQ);
+        if(!_cup_wakeup_enabled) {
+            while((GPIO_ReadInputDataBit(btn_left_GPIO_Port, btn_left_Pin) == 0U) &&
+                  !is_charging_active()) {
+                vTaskDelay(pdMS_TO_TICKS(5U));
+            }
+            _is_incharging = is_charging_active();
+        }
+        if(false == _is_incharging) {
+            digits_disp_req(DISP_HALT_REQ);
+        }
     }
     stop_bat_sample();
 
-#if SLEEP_PROBE_CUP_WAKE_ENABLED
     bool _mass_powered_down = true;
     if(false == _is_incharging) {
         const TickType_t _powerdown_start = xTaskGetTickCount();
@@ -251,39 +279,33 @@ static uint32_t sleeping_state_action(void) {
             vTaskDelay(pdMS_TO_TICKS(1U));
         }
     }
-#endif
 
     if(false == _is_incharging) {
-#if SLEEP_PROBE_CUP_WAKE_ENABLED
         if(_mass_powered_down) {
-#endif
-        SYSTEM_ERROR_CODE_E _store_res = ERR_NONE;
-        for(uint32_t _attempt = 0; _attempt < 2U; _attempt++) {
-            _store_res = need_write_config();
-            if(ERR_NONE == _store_res) {
-                _store_res = wait_config_store();
+            SYSTEM_ERROR_CODE_E _store_res = ERR_NONE;
+            for(uint32_t _attempt = 0; _attempt < 2U; _attempt++) {
+                _store_res = need_write_config();
+                if(ERR_NONE == _store_res) {
+                    _store_res = wait_config_store();
+                }
+                if(ERR_NONE == _store_res) {
+                    break;
+                }
+                FSM_LOG_INFO("Config store before sleep failed: %d", _store_res);
             }
-            if(ERR_NONE == _store_res) {
-                break;
-            }
-            FSM_LOG_INFO("Config store before sleep failed: %d", _store_res);
         }
-#if SLEEP_PROBE_CUP_WAKE_ENABLED
-        }
-#endif
     }
 
     dev_status_get(INCHARGING_STATE, &_is_incharging);
     if(GPIO_ReadInputDataBit(CHARGING_ENABLE_GPIO_Port, CHARGING_ENABLE_Pin) == 0U) {
         _is_incharging = true;
     }
-#if SLEEP_PROBE_CUP_WAKE_ENABLED
-    mass_sleep_probe_pause(_is_incharging || (SLEEP_PROBE_CUP_WAKE_ENABLED == 2U));
-#else
-    if(!_is_incharging) {
-        dev_hw_shutdown();
+    if(_cup_wakeup_enabled) {
+        mass_sleep_probe_pause(_is_incharging);
     }
-#endif
+    else {
+        mass_sleep_probe_stop();
+    }
 
     if(!_is_incharging) {
         const TickType_t display_halt_started_at = xTaskGetTickCount();
@@ -307,6 +329,9 @@ static uint32_t sleeping_state_action(void) {
         gpio_sleep_left_wakeup_enable();
         if(display_halted) {
             gpio_sleep_unused_pins_enter();
+        }
+        if(!_cup_wakeup_enabled) {
+            dev_hw_shutdown();
         }
     }
     
@@ -407,6 +432,7 @@ static void wakup_cali_state_exit(uint32_t state) {
     else if(mass_unit == MASS_UNIT_G) {
         digits_disp_req(DISP_G_MODE_REQ);
     }
+    update_cup_wakeup_indicator();
     FSM_LOG_INFO("Startup going to system mode: %d", state);
 }
 
@@ -790,12 +816,10 @@ void FSMreq_task(void * argument) {
         switch(FSMreq_cob) {
             case SYS_SLEEPING_REQ: {
                 dev_status_set(BUTTON_LOCK_STATE, true);
-#if SLEEP_PROBE_CUP_WAKE_ENABLED
                 /* Arm a paused probe before publishing SLEEPING. The mass task
                  * will power CS1237 down before it can run another fatal normal
                  * acquisition cycle; sleeping_state_action waits for completion. */
                 mass_sleep_probe_start_paused();
-#endif
                 set_run_state(SLEEPING);
                 FSM_LOG_INFO("Sleeping request received! Going to SLEEPING");
             } break;
@@ -819,7 +843,8 @@ void FSMreq_task(void * argument) {
             } break;
 
             case SYS_CUP_WAKEUP_REQ: {
-                if((_sys_state == SLEEPING) && !is_charging_active() && !s_probe_error_visible) {
+                if((_sys_state == SLEEPING) && cup_wakeup_is_enabled() &&
+                   !is_charging_active() && !s_probe_error_visible) {
                     s_cup_wakeup = true;
                     s_cup_peeling_started = false;
                     s_explicit_wake_startup = false;
@@ -836,7 +861,8 @@ void FSMreq_task(void * argument) {
             } break;
 
             case SYS_SLEEP_PROBE_ERROR_REQ: {
-                if((_sys_state == SLEEPING) && !is_charging_active() && !s_probe_error_visible) {
+                if((_sys_state == SLEEPING) && cup_wakeup_is_enabled() &&
+                   !is_charging_active() && !s_probe_error_visible) {
                     s_probe_error_visible = true;
                     vTaskResume(s_disp_os->handler);
                     digits_disp_recoverable_error(BOOKOO_ERROR_MASS_LOWPOWER_PROBE_FAIL);
@@ -858,11 +884,24 @@ void FSMreq_task(void * argument) {
             } break;
 
             case SYS_SLEEP_PROBE_RETRY_REQ: {
-#if SLEEP_PROBE_CUP_WAKE_ENABLED != 2U
-                if((_sys_state == SLEEPING) && s_probe_error_visible) {
+                if((_sys_state == SLEEPING) && cup_wakeup_is_enabled() && s_probe_error_visible) {
                     mass_sleep_probe_pause(false);
                 }
-#endif
+            } break;
+
+            case SYS_CUP_WAKEUP_TOGGLE_REQ: {
+                bool cup_wakeup_preference = false;
+                if(get_kv_param_value(PARAM_KEY_CUP_WAKEUP_ENABLE, &cup_wakeup_preference) == ERR_NONE) {
+                    cup_wakeup_preference = !cup_wakeup_preference;
+                    if(set_kv_param_value(PARAM_KEY_CUP_WAKEUP_ENABLE, &cup_wakeup_preference) == ERR_NONE) {
+                        need_write_config();
+                        update_cup_wakeup_indicator();
+                        send_hci_buzzer_melody(HCI_BUZZER_CLICK_RESPONSE);
+                        FSM_LOG_INFO("Cup wakeup preference: %u, effective: %u",
+                                     (unsigned int)cup_wakeup_preference,
+                                     (unsigned int)cup_wakeup_is_enabled());
+                    }
+                }
             } break;
             
             case SYS_CALI_REQ: {
@@ -1004,10 +1043,14 @@ void FSMreq_task(void * argument) {
                     }
                 }
                 if(_sys_state == SLEEPING) {
-#if SLEEP_PROBE_CUP_WAKE_ENABLED != 2U
-                    mass_sleep_probe_reset_zero_baseline();
-                    mass_sleep_probe_pause(false);
-#endif
+                    if(cup_wakeup_is_enabled()) {
+                        mass_sleep_probe_reset_zero_baseline();
+                        mass_sleep_probe_pause(false);
+                    }
+                    else {
+                        mass_sleep_probe_stop();
+                        dev_hw_shutdown();
+                    }
                 }
             } break;
             

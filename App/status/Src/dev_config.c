@@ -43,7 +43,8 @@ numeric_param_t numeric_params[] = {
     {   PARAM_KEY_SOUND_ENABLE,     .default_val.us8[0] = true,                 .lo_limit.us8[0] = false,   .hi_limit.us8[0] = true,    .type = US8_TYPE    },
     {   PARAM_KEY_MODE_MASK,        .default_val.us8[0] = 0x0b,                 .lo_limit.us8[0] = 0x01,    .hi_limit.us8[0] = 0x0f,    .type = US8_TYPE    },
     {   PARAM_KEY_ANI_CYCLE,        .default_val.us16[0] = DE_ANI_CYCLE_MS,     .lo_limit.us16[0] = 10,     .hi_limit.us16[0] = 1000,   .type = US16_TYPE   },
-    {   PARAM_KEY_TOUCH_GUARD,      .default_val.us8[0] = false,                .lo_limit.us8[0] = 0,       .hi_limit.us8[0] = 1,       .type = US8_TYPE    }
+    {   PARAM_KEY_TOUCH_GUARD,      .default_val.us8[0] = false,                .lo_limit.us8[0] = 0,       .hi_limit.us8[0] = 1,       .type = US8_TYPE    },
+    {   PARAM_KEY_CUP_WAKEUP_ENABLE,.default_val.us8[0] = false,                .lo_limit.us8[0] = 0,       .hi_limit.us8[0] = 1,       .type = US8_TYPE    }
 };
 
 

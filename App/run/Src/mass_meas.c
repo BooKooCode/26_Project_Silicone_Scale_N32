@@ -467,15 +467,11 @@ void mass_task(void * argument) {
 			mass_probe_process();
 		}
 		if(s_probe_phase == MASS_PROBE_PHASE_POWERED_DOWN) {
-			if((SLEEP_PROBE_CUP_WAKE_ENABLED == 2U) && s_probe_paused) {
-				delay_ticks = portMAX_DELAY;
-			} else {
-				TickType_t powered_down_ticks = pdMS_TO_TICKS(
-					SLEEP_PROBE_PERIOD_MS - SLEEP_PROBE_WINDOW_MS);
-				TickType_t elapsed_ticks = xTaskGetTickCount() - s_probe_powered_down_at;
-				if(elapsed_ticks < powered_down_ticks) {
-					delay_ticks = powered_down_ticks - elapsed_ticks;
-				}
+			TickType_t powered_down_ticks = pdMS_TO_TICKS(
+				SLEEP_PROBE_PERIOD_MS - SLEEP_PROBE_WINDOW_MS);
+			TickType_t elapsed_ticks = xTaskGetTickCount() - s_probe_powered_down_at;
+			if(elapsed_ticks < powered_down_ticks) {
+				delay_ticks = powered_down_ticks - elapsed_ticks;
 			}
 		}
 		else if((s_probe_phase == MASS_PROBE_PHASE_SAMPLING) ||

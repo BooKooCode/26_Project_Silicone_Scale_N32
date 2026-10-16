@@ -153,6 +153,7 @@ SYSTEM_ERROR_CODE_E unregister_multi_click_event(btn_event_mgnt_t *btn_mgnt, uin
 void button_state_update(btn_event_mgnt_t *btn_mgnt, uint8_t button_index, BUTTON_TRIGGER_LEVEL_E trigger_level) {
     button_statistic_t *stat = GET_BTN_STAT(btn_mgnt, button_index);
     bool trigger = btn_mgnt->get_btn_level_handler(button_index);
+    bool startup_press_active = stat->startup_press_valid;
     if(BUTTON_TRIGGER_LEVEL_LOW == trigger_level) {
         trigger = !trigger;
     }
@@ -202,6 +203,9 @@ void button_state_update(btn_event_mgnt_t *btn_mgnt, uint8_t button_index, BUTTO
         auto_event_run_handlers(btn_mgnt->btn_event_handler[button_index], (void *)BUTTON_RELEASE);
         /*  */
         if(stat->press_count >= KEY_SINGLE_PRESS_THRES_COUNT && stat->press_count < KEY_SHORT_PRESS_THRES_COUNT) {
+            if(false == startup_press_active) {
+                auto_event_run_handlers(btn_mgnt->btn_event_handler[button_index], (void *)BUTTON_CLICK_FEEDBACK);
+            }
             uint32_t current_tick = xTaskGetTickCount();
             uint32_t release_interval = current_tick - stat->last_release_tick;
             stat->last_release_tick = current_tick;

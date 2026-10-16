@@ -73,6 +73,9 @@ typedef enum _digits_disp_req_e{
 	
 	DISP_PEELING_REQ,
 	DISP_EXITPEELING_REQ,
+
+	DISP_CUP_WAKEUP_ENABLE_REQ,
+	DISP_CUP_WAKEUP_DISABLE_REQ,
 	
     DISP_RESERVED_REQ_4,
 }digits_disp_req_e;
