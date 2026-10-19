@@ -216,6 +216,7 @@ SYSTEM_ERROR_CODE_E saadc_mgnt_sample_blocking(float * const _volt_arr)
 			err_code = ERR_TIMEOUT;
 			continue;
 		}
+		ADC->CTRL2 = (ADC->CTRL2 & ~ADC_EXT_TRIGCONV_NONE) | ADC_EXT_TRIGCONV_NONE;
 		ADC_ClearFlag(ADC, ADC_FLAG_ENDCA | ADC_FLAG_ENDC | ADC_FLAG_STR);
 		ADC_EnableSoftwareStartConv(ADC, ENABLE);
 		uint32_t start_cycles = saadc_timeout_start();

@@ -100,10 +100,22 @@ static void power_latch_early(void)
     __DSB();
 }
 
+#ifndef DEBUG_KEEP_LOWPOWER_SWD
+#if defined(DEBUG)
+#define DEBUG_KEEP_LOWPOWER_SWD 1
+#else
+#define DEBUG_KEEP_LOWPOWER_SWD 0
+#endif
+#endif
+
 int main(void)
 {
     power_latch_early();
+#if DEBUG_KEEP_LOWPOWER_SWD
+    DBG_ConfigPeriph(DBG_SLEEP | DBG_STOP | DBG_STDBY, ENABLE);
+#else
     DBG_ConfigPeriph(DBG_SLEEP | DBG_STOP | DBG_STDBY, DISABLE);
+#endif
     SystemClock_Config();
     NS_GPIO_Init();
     NS_RTC_Init();

@@ -286,8 +286,23 @@ void bat_task(void * argument) {
 		full_charged_poll();
         
         /* Keep the battery ADC disabled while business sleep is active. */
-        if((_sys_state != SLEEPING) || _is_charge) {
-            start_bat_sample();
+        bool sample_started = false;
+        if(((_sys_state != SLEEPING) && (_sys_state != WAKEUP)) || _is_charge) {
+            sample_started = (start_bat_sample() == ERR_NONE);
+        }
+
+        if(sample_started) {
+            const TickType_t sample_wait_started_at = xTaskGetTickCount();
+            const TickType_t sample_wait_limit = pdMS_TO_TICKS(
+                TIM_BAT_SAMPLE_PERIOD_MS * (get_power_cal_mgnt_record_size() + 2U));
+
+            while(!s_bat_result_pending) {
+                TickType_t elapsed = xTaskGetTickCount() - sample_wait_started_at;
+                if(elapsed >= sample_wait_limit) {
+                    break;
+                }
+                (void)ulTaskNotifyTake(pdTRUE, sample_wait_limit - elapsed);
+            }
         }
 
         bat_process_pending_result();

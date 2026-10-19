@@ -7,6 +7,8 @@ skills-lock.json
 
 # CMake build output
 build/
+.yoma/
+tmp/
 
 # Machine-local tool paths
 .vscode/settings.json

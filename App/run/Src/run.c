@@ -260,6 +260,10 @@ static uint32_t sleeping_state_action(void) {
                 vTaskDelay(pdMS_TO_TICKS(5U));
             }
             _is_incharging = is_charging_active();
+            uint32_t requested_state = get_run_state();
+            if(requested_state != SLEEPING) {
+                return requested_state;
+            }
         }
         if(false == _is_incharging) {
             digits_disp_req(DISP_HALT_REQ);
@@ -956,9 +960,13 @@ void FSMreq_task(void * argument) {
             } break;
                 
             case SYS_LOWPOWER_PROTECT_REQ: {
-                if(_sys_state != SLEEPING) {
+                if(_sys_state != SLEEPING && _sys_state != SYS_LOWPOWER_PROTECT) {
                     dev_status_set(BUTTON_LOCK_STATE, true);
+                    if(digits_disp_stateget() == DISP_HALT) {
+                        digits_disp_req(DISP_STARTUP_REQ);
+                    }
                     digits_disp_req(DISP_LOWPOWER_PROTECT_REQ);
+                    vTaskResume(s_disp_os->handler);
                     set_run_state(SYS_LOWPOWER_PROTECT);
                     FSM_LOG_INFO("Low power protection! Going to SYS_LOWPOWER_PROTECT");
                 }
