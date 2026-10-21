@@ -21,6 +21,7 @@ void gpio_sleep_left_wakeup_enable(void);
 void gpio_sleep_left_wakeup_disable(void);
 void gpio_sleep_unused_pins_enter(void);
 void gpio_sleep_unused_pins_restore(void);
+bool gpio_sleep_unused_pins_configured(void);
 void gpio_sleep_left_wakeup_arm_if_released(void);
 bool gpio_sleep_left_wakeup_is_enabled(void);
 bool gpio_sleep_left_wakeup_wait_ready(void);

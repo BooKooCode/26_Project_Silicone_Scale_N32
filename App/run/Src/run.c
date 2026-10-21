@@ -960,7 +960,17 @@ void FSMreq_task(void * argument) {
             } break;
                 
             case SYS_LOWPOWER_PROTECT_REQ: {
-                if(_sys_state != SLEEPING && _sys_state != SYS_LOWPOWER_PROTECT) {
+                if((_sys_state == SLEEPING) && !is_charging_active()) {
+                    /* The stand-by probe refreshes the battery now.  An empty
+                     * battery must still cut the power latch, but only after
+                     * the normal sleep shutdown (config store / display halt)
+                     * has installed the low-power pin map. */
+                    if(gpio_sleep_unused_pins_configured()) {
+                        FSM_LOG_INFO("Battery empty in standby! Power off");
+                        dev_hw_shutdown();
+                    }
+                }
+                else if(_sys_state != SLEEPING && _sys_state != SYS_LOWPOWER_PROTECT) {
                     dev_status_set(BUTTON_LOCK_STATE, true);
                     if(digits_disp_stateget() == DISP_HALT) {
                         digits_disp_req(DISP_STARTUP_REQ);

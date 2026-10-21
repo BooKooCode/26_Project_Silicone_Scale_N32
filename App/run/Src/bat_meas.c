@@ -25,6 +25,14 @@ static volatile bool s_bat_result_pending = false;
 static volatile uint8_t s_bat_result_percent = 0U;
 
 
+static void bat_sample_finish_hw(void)
+{
+    saadc_mgnt_disable();
+    /* Let tickless idle enter STOP2 again once the ADC transaction is over. */
+    os_mgnt_set_stop_block(OS_MGNT_STOP_BLOCK_BAT_SAMPLE, false);
+}
+
+
 static void update_cup_wakeup_availability(uint8_t battery_percent) {
     bool cup_wakeup_preference = false;
     bool cup_wakeup_enabled = false;
@@ -71,7 +79,7 @@ static void bat_sample_timeout_handler(TimerHandle_t xTimer) {
         if(xTimerStop(xTimer, 0) != pdPASS) {
             is_timer_stop_failed = true;
         }
-        saadc_mgnt_disable();
+        bat_sample_finish_hw();
         is_sample_failed = true;
     }
     else {
@@ -85,7 +93,7 @@ static void bat_sample_timeout_handler(TimerHandle_t xTimer) {
             if(xTimerStop(xTimer, 0) != pdPASS) {
                 is_timer_stop_failed = true;
             }
-            saadc_mgnt_disable();
+            bat_sample_finish_hw();
             is_sample_finished = true;
         }
     }
@@ -200,10 +208,15 @@ SYSTEM_ERROR_CODE_E start_bat_sample(void) {
     }
     s_sample_finished = false;
     power_calc_mgnt_reset();
+    /* The stand-by refresh runs inside SLEEPING; keep the analog domain alive
+     * for the five 10 ms samples instead of letting tickless idle enter
+     * STOP2 in the gaps.  Normal (awake) sampling simply keeps the bit set
+     * for the same short transaction. */
+    os_mgnt_set_stop_block(OS_MGNT_STOP_BLOCK_BAT_SAMPLE, true);
     saadc_mgnt_enable();
     if(xTimerReset(s_sample_timer, 0) != pdPASS) {
         s_sample_finished = true;
-        saadc_mgnt_disable();
+        bat_sample_finish_hw();
         xSemaphoreGive(s_sample_mutex);
         APP_ERROR_HANDLER(ERR_BUSY);
         return ERR_FAIL;
@@ -227,14 +240,28 @@ SYSTEM_ERROR_CODE_E stop_bat_sample(void) {
     s_sample_finished = true;
     power_calc_mgnt_reset();
     if(xTimerStop(s_sample_timer, 0) != pdPASS) {
-        saadc_mgnt_disable();
+        bat_sample_finish_hw();
         xSemaphoreGive(s_sample_mutex);
         APP_ERROR_HANDLER(ERR_BUSY);
         return ERR_FAIL;
     }
-    saadc_mgnt_disable();
+    bat_sample_finish_hw();
     xSemaphoreGive(s_sample_mutex);
     return ERR_NONE;
+}
+
+
+SYSTEM_ERROR_CODE_E bat_sleep_refresh_start(void)
+{
+    uint32_t system_state = SLEEPING;
+    uint32_t is_incharging = false;
+
+    dev_status_get(SYSTEM_STATE, &system_state);
+    dev_status_get(INCHARGING_STATE, &is_incharging);
+    if((system_state != SLEEPING) || is_incharging) {
+        return ERR_INVALID_STATE;
+    }
+    return start_bat_sample();
 }
 
 

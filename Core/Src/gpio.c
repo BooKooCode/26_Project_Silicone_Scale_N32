@@ -26,7 +26,23 @@ typedef struct {
 
 static gpio_sleep_snapshot_t s_gpioa_sleep_snapshot;
 static gpio_sleep_snapshot_t s_gpiob_sleep_snapshot;
-static bool s_sleep_unused_pins_configured = false;
+static volatile bool s_sleep_unused_pins_configured = false;
+
+/* ADC_Control is active high.  Keep it driven low while the MCU is in STOP2
+ * so the battery divider is switched off; the cup-wakeup probe window enables
+ * it again for a one-shot battery refresh. */
+static void gpio_sleep_bat_measure_off(void)
+{
+    GPIO_InitType gpio = {0};
+
+    GPIO_ResetBits(ADC_Control_GPIO_Port, ADC_Control_Pin);
+    gpio.Pin = ADC_Control_Pin;
+    gpio.GPIO_Mode = GPIO_Mode_Out_PP;
+    gpio.GPIO_Pull = GPIO_No_Pull;
+    gpio.GPIO_Current = GPIO_DC_2mA;
+    gpio.GPIO_Slew_Rate = GPIO_Slew_Rate_Low;
+    GPIO_InitPeripheral(ADC_Control_GPIO_Port, &gpio);
+}
 
 static uint32_t gpio_expand_pin_mask(uint16_t pins, uint8_t width, uint8_t first_pin,
                                      uint8_t pin_count)
@@ -187,9 +203,18 @@ void gpio_sleep_unused_pins_enter(void)
         GPIO_InitPeripheral(GPIOA, &gpio);
         gpio.Pin = GPIO_SLEEP_ANALOG_B;
         GPIO_InitPeripheral(GPIOB, &gpio);
+        /* PA7 is part of the analog mask above; restore it afterwards as a
+         * pushed-low output instead of leaving the divider control floating. */
+        gpio_sleep_bat_measure_off();
         s_sleep_unused_pins_configured = true;
     }
     taskEXIT_CRITICAL();
+}
+
+
+bool gpio_sleep_unused_pins_configured(void)
+{
+    return s_sleep_unused_pins_configured;
 }
 
 void gpio_sleep_unused_pins_restore(void)

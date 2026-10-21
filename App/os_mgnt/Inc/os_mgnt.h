@@ -39,6 +39,10 @@ typedef struct {
 
 extern volatile uint32_t g_tickless_stop2_entry_count;
 
+/* Tickless idle STOP2 blockers.  A caller that needs the ADC/analog domain
+ * alive across a short transaction sets its bit until the transaction ends. */
+#define OS_MGNT_STOP_BLOCK_BAT_SAMPLE (1UL << 0)
+
 
 void os_mgnt_init(void);
 void os_mgnt_set_stop_block(uint32_t blocker, bool blocked);

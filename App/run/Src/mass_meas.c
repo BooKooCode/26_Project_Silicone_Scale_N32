@@ -6,6 +6,8 @@
 #include "mass_meas.h"
 #include "sleep_probe.h"
 #include "dev_cs1237.h"
+#include "bat_meas.h"
+#include "gpio.h"
 #include <math.h>
 
 
@@ -48,6 +50,8 @@ static uint32_t s_probe_stable_sample_index = 0U;
 static uint32_t s_probe_stable_sample_count = 0U;
 static float s_probe_stable_average = 0.0f;
 static bool s_probe_window_stable = false;
+static bool s_bat_sleep_refresh_valid = false;
+static TickType_t s_bat_sleep_refresh_tick = 0U;
 
 static void mass_probe_stable_reset(void)
 {
@@ -61,6 +65,22 @@ static void mass_probe_trigger_reset(void)
 {
 	s_probe_trigger_sample_sum = 0.0f;
 	s_probe_trigger_sample_count = 0U;
+}
+
+static void mass_probe_refresh_battery(TickType_t now)
+{
+	if(!gpio_sleep_unused_pins_configured()) {
+		return;
+	}
+	if(s_bat_sleep_refresh_valid &&
+	   ((now - s_bat_sleep_refresh_tick) <
+		pdMS_TO_TICKS(BAT_SLEEP_REFRESH_INTERVAL_MS))) {
+		return;
+	}
+	if(bat_sleep_refresh_start() == ERR_NONE) {
+		s_bat_sleep_refresh_tick = now;
+		s_bat_sleep_refresh_valid = true;
+	}
 }
 
 static bool mass_probe_stable_push(float value)
@@ -145,6 +165,7 @@ static void mass_probe_apply_requests(void)
 		s_probe_wake_candidate = false;
 		s_probe_stabilizing = false;
 		mass_probe_trigger_reset();
+		s_bat_sleep_refresh_valid = false;
 		dev_cs1237_set_probe_rate(true);
 		s_probe_phase = s_probe_paused ? MASS_PROBE_PHASE_POWERING_DOWN :
 										 MASS_PROBE_PHASE_WAKING;
@@ -157,6 +178,7 @@ static void mass_probe_apply_requests(void)
 		s_probe_wake_candidate = false;
 		s_probe_stabilizing = false;
 		mass_probe_trigger_reset();
+		s_bat_sleep_refresh_valid = false;
 		dev_cs1237_set_probe_rate(true);
 		s_probe_phase = s_probe_paused ? MASS_PROBE_PHASE_POWERING_DOWN :
 										 MASS_PROBE_PHASE_WAKING;
@@ -281,6 +303,9 @@ static void mass_probe_process(void)
 				}
 			}
 			s_probe_window_pending = false;
+			if(!s_probe_paused) {
+				mass_probe_refresh_battery(now);
+			}
 			s_probe_powered_down_at = now;
 			s_probe_phase = MASS_PROBE_PHASE_POWERED_DOWN;
 			break;

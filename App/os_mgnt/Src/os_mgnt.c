@@ -59,7 +59,7 @@ os_task_info_t os_task_info[OS_TASK_TOTAL_COUNT] = {
     {.name = "App.Hci",         .task_code = hci_task,          .priority = 2,  .stack_size = 100,  .paramaters = os_task_info},    /* OS_TASK_HCI */
     {.name = "App.Bat",         .task_code = bat_task,          .priority = 1,  .stack_size = 80,  .paramaters = os_task_info},    /* OS_TASK_BAT */
     {.name = "App.Disp",        .task_code = disp_task,         .priority = 2,  .stack_size = 110,  .paramaters = os_task_info},    /* OS_TASK_DISP */
-    {.name = "App.Mass",        .task_code = mass_task,         .priority = 3,  .stack_size = 110,  .paramaters = os_task_info},    /* OS_TASK_MASS */
+    {.name = "App.Mass",        .task_code = mass_task,         .priority = 3,  .stack_size = 180,  .paramaters = os_task_info},    /* OS_TASK_MASS */
     {.name = "App.FSM",         .task_code = FSM_task,          .priority = 3,  .stack_size = 192,  .paramaters = os_task_info},    /* OS_TASK_FSM */
     {.name = "App.FSMreq",      .task_code = FSMreq_task,       .priority = 5,  .stack_size = 224,  .paramaters = os_task_info},    /* OS_TASK_FSMREQ */
     {.name = "App.timreq",      .task_code = timingreq_task,    .priority = 4,  .stack_size = 72,   .paramaters = os_task_info},    /* OS_TASK_TIMREQ */
