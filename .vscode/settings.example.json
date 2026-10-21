@@ -4,7 +4,7 @@
     "n32.gccBin": "C:\\path\\to\\arm-gnu-toolchain\\bin",
     "n32.jlinkPath": "C:\\path\\to\\JLink",
     "n32.device": "N32G435CB",
-    "n32.swdSpeed": "1000",
+    "n32.swdSpeed": "4000",
     "tasks.statusbar.default.hide": true,
     "tasks.statusbar.limit": null,
     "git.openRepositoryInParentFolders": "never",

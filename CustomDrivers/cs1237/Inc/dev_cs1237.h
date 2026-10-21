@@ -73,6 +73,15 @@ void dev_cs1237_read_result(int32_t * _res);
 void dev_cs1237_sleeping(void);
 
 /**
+ * @brief Hold the SCLK-high level that keeps the CS1237 in Power-down.
+ *
+ * Safe to call when the driver already reports the device as sleeping; it
+ * re-asserts the GPIO level so STOP2 entry/exit cannot leave the ADC in
+ * normal mode.
+ */
+void dev_cs1237_hold_power_down(void);
+
+/**
  * @brief Enter CS1237 Power-down synchronously.
  *
  * SCLK is driven high for longer than the datasheet minimum of 100 us.

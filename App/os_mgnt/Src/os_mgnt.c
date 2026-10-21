@@ -257,6 +257,10 @@ void PreSleepProcessing(uint32_t ulExpectedIdleTime) {
     if(ulExpectedIdleTime == 0U) {
         return;
     }
+    /* Re-assert the CS1237 power-down level right before STOP2.  The driver
+     * already reports it sleeping here, but the GPIO level can be disturbed
+     * around STOP2 entry; holding SCLK high keeps the ADC off. */
+    scale_mass_mgnt_prepare_stop2();
     s_rtcSnapshotValid = rtc_capture_subticks(&s_rtcSubTicksBeforeSleep);
     if(!s_rtcSnapshotValid) {
         return;

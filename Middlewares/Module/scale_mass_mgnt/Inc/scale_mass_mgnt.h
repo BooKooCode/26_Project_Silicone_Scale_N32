@@ -100,6 +100,7 @@ ret_code_t scale_mass_mgnt_probe_power_down(void);
 ret_code_t scale_mass_mgnt_probe_restore_normal(void);
 bool scale_mass_mgnt_stop_blocked(void);
 void scale_mass_mgnt_restore_after_stop2(void);
+void scale_mass_mgnt_prepare_stop2(void);
 bool scale_mass_mgnt_normal_ready(void);
 uint32_t scale_mass_mgnt_sample_count(void);
 float scale_mass_mgnt_instant_mass_get(void);

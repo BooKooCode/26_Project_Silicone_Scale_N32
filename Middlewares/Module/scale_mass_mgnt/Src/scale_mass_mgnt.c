@@ -997,6 +997,11 @@ void scale_mass_mgnt_restore_after_stop2(void)
 	dev_cs1237_restore_after_stop2();
 }
 
+void scale_mass_mgnt_prepare_stop2(void)
+{
+	dev_cs1237_hold_power_down();
+}
+
 bool scale_mass_mgnt_normal_ready(void)
 {
 	return dev_cs1237_is_ready();

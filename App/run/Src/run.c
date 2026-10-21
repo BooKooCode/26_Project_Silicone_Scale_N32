@@ -1062,7 +1062,7 @@ void FSMreq_task(void * argument) {
                 }
                 if(_sys_state == SLEEPING) {
                     if(cup_wakeup_is_enabled()) {
-                        mass_sleep_probe_reset_zero_baseline();
+                        mass_sleep_probe_reset_reference();
                         mass_sleep_probe_pause(false);
                     }
                     else {

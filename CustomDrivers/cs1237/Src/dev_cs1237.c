@@ -47,7 +47,9 @@
 #define CS1237_POWER_DOWN_HOLD_US 150U
 #define CS1237_POWER_UP_HOLD_US   10U
 #define CS1237_SETTLE_40HZ_MS     80U
-#define CS1237_SETTLE_640HZ_MS    10U
+/* Datasheet: 2 ms power-down recovery plus 3.125 ms analog/digital settling
+ * (4 conversion cycles at 1280 Hz). */
+#define CS1237_SETTLE_1280HZ_MS   6U
 #define CS1237_READ_TAIL_CLOCK_COUNT 3U
 #define CS1237_WRITE_CMD          0x65U
 
@@ -73,7 +75,7 @@
 #define CS1237_CH_ADC       (0x00)
 #define CS1237_PGA_128      (0x03 << 2)
 #define CS1237_RATE_40HZ    (0x01 << 4)
-#define CS1237_RATE_640HZ   (0x02 << 4)
+#define CS1237_RATE_1280HZ  (0x03 << 4)
 #define CS1237_REF_ON       (0x00 << 6)
 #define CS1237_CONFIG(pga, rate) ((pga) | (rate) | CS1237_REF_ON | CS1237_CH_ADC)
 
@@ -388,7 +390,7 @@ ret_code_t dev_cs1237_process(void)
 
 			err = cs1237_write_config(CS1237_CONFIG(
 				CS1237_PGA_128,
-				cs1237_probe_rate_fast ? CS1237_RATE_640HZ : CS1237_RATE_40HZ));
+				cs1237_probe_rate_fast ? CS1237_RATE_1280HZ : CS1237_RATE_40HZ));
 			if(err != NS_SUCCESS) {
 				cs1237_state = CS1237_STATE_ERROR;
 				cs1237_record_error(err);
@@ -402,7 +404,7 @@ ret_code_t dev_cs1237_process(void)
 
 		case CS1237_STATE_SETTLING:
 			uint32_t settle_ms = cs1237_probe_rate_fast ?
-				CS1237_SETTLE_640HZ_MS : CS1237_SETTLE_40HZ_MS;
+				CS1237_SETTLE_1280HZ_MS : CS1237_SETTLE_40HZ_MS;
 			if((now - cs1237_state_tick) < pdMS_TO_TICKS(settle_ms)) {
 				return NS_ERROR_BUSY;
 			}
@@ -607,6 +609,16 @@ void dev_cs1237_sleeping(void)
 	cs1237_request = CS1237_REQUEST_SLEEP;
 }
 
+void dev_cs1237_hold_power_down(void)
+{
+	/* Re-assert the SCLK-high power-down level.  STOP2 entry/exit can leave
+	 * the GPIO in an unexpected state; holding SCLK high keeps the CS1237
+	 * from silently returning to normal mode (2.34 mA at PGA=128). */
+	if(cs1237_state == CS1237_STATE_SLEEPING) {
+		cs1237_sck_as_gpio(true);
+	}
+}
+
 void dev_cs1237_set_probe_rate(bool fast)
 {
 	cs1237_probe_rate_fast = fast;
@@ -680,6 +692,7 @@ bool dev_cs1237_transfer_active(void)
 void dev_cs1237_restore_after_stop2(void)
 {
 	if(cs1237_state == CS1237_STATE_SLEEPING) {
+		dev_cs1237_hold_power_down();
 		return;
 	}
 

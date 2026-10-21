@@ -1,19 +1,18 @@
 #include "sleep_probe.h"
-#include <math.h>
 
-void sleep_probe_init(sleep_probe_t *probe, bool baseline_valid, float baseline_g)
+void sleep_probe_init(sleep_probe_t *probe, bool reference_valid, float reference_g)
 {
-    probe->baseline_g = baseline_g;
+    probe->reference_g = reference_g;
     probe->failure_count = 0U;
-    probe->baseline_valid = baseline_valid;
+    probe->reference_valid = reference_valid;
     probe->error_latched = false;
 }
 
 sleep_probe_event_e sleep_probe_finish_window(sleep_probe_t *probe,
                                               bool sample_seen,
                                               bool driver_error,
-                                              bool stable,
-                                              float absolute_mass_g)
+                                              bool measurement_valid,
+                                              float window_mass_g)
 {
     if (driver_error || !sample_seen) {
         if (probe->failure_count < UINT8_MAX) {
@@ -27,7 +26,7 @@ sleep_probe_event_e sleep_probe_finish_window(sleep_probe_t *probe,
     }
 
     probe->failure_count = 0U;
-    if (absolute_mass_g > SLEEP_PROBE_OVERLOAD_LIMIT_G) {
+    if (window_mass_g > SLEEP_PROBE_OVERLOAD_LIMIT_G) {
         return SLEEP_PROBE_EVENT_NONE;
     }
     if (probe->error_latched) {
@@ -35,28 +34,34 @@ sleep_probe_event_e sleep_probe_finish_window(sleep_probe_t *probe,
         return SLEEP_PROBE_EVENT_RECOVERED;
     }
 
-    if (!stable) {
+    /* An unusable window must not move the reference, otherwise a single bad
+     * window would silently swallow the next real cup placement. */
+    if (!measurement_valid) {
         return SLEEP_PROBE_EVENT_NONE;
     }
-    if (!probe->baseline_valid) {
-        probe->baseline_g = absolute_mass_g;
-        probe->baseline_valid = true;
+    if (!probe->reference_valid) {
+        probe->reference_g = window_mass_g;
+        probe->reference_valid = true;
         return SLEEP_PROBE_EVENT_NONE;
     }
-    if (fabsf(absolute_mass_g - probe->baseline_g) > SLEEP_PROBE_WAKE_DELTA_G) {
+
+    float previous_g = probe->reference_g;
+
+    probe->reference_g = window_mass_g;
+    if ((window_mass_g - previous_g) > SLEEP_PROBE_WAKE_DELTA_G) {
         return SLEEP_PROBE_EVENT_CUP_WAKE;
     }
     return SLEEP_PROBE_EVENT_NONE;
 }
 
-bool sleep_probe_has_baseline(const sleep_probe_t *probe)
+bool sleep_probe_has_reference(const sleep_probe_t *probe)
 {
-    return probe->baseline_valid;
+    return probe->reference_valid;
 }
 
-float sleep_probe_baseline_g(const sleep_probe_t *probe)
+float sleep_probe_reference_g(const sleep_probe_t *probe)
 {
-    return probe->baseline_g;
+    return probe->reference_g;
 }
 
 uint8_t sleep_probe_failure_count(const sleep_probe_t *probe)
